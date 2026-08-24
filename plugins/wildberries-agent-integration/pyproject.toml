@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wildberries-agent-integration"
+version = "0.1.0"
+description = "Free MCP integration for Wildberries seller analytics, economics, and replenishment forecasts."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "BearsCLOUD"}]
+dependencies = [
+  "httpx>=0.27,<1",
+  "mcp>=1.0,<2",
+  "starlette>=0.37,<1",
+]
+
+[project.scripts]
+wildberries-agent-mcp = "wildberries_agent_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

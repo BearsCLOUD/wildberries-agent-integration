@@ -1,0 +1,38 @@
+{
+  "name": "wildberries-agent-integration",
+  "version": "0.1.0",
+  "description": "Free Wildberries analytics, unit-economics, and replenishment tools for Codex and MCP-compatible agents.",
+  "author": {
+    "name": "BearsCLOUD",
+    "url": "https://github.com/BearsCLOUD"
+  },
+  "homepage": "https://bears.ru",
+  "repository": "https://github.com/BearsCLOUD/wildberries-agent-integration",
+  "license": "MIT",
+  "keywords": [
+    "wildberries",
+    "seller analytics",
+    "mcp",
+    "codex",
+    "claude",
+    "unit economics",
+    "replenishment"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Wildberries Agent Integration",
+    "shortDescription": "Free seller analytics, calculator, and warehouse forecast.",
+    "longDescription": "Connect a Seller account, inspect Wildberries metrics, calculate unit economics, and forecast how much stock to replenish by warehouse. Supplier tokens stay in the secure Seller flow.",
+    "developerName": "BearsCLOUD",
+    "category": "Analytics",
+    "capabilities": ["Analytics", "Calculations", "MCP"],
+    "websiteURL": "https://bears.ru",
+    "defaultPrompt": [
+      "Show my Wildberries sales for the last 14 days.",
+      "Calculate the break-even price for this product.",
+      "How much stock should go to each warehouse?"
+    ],
+    "brandColor": "#7C3AED"
+  },
+  "mcpServers": "./.mcp.json"
+}

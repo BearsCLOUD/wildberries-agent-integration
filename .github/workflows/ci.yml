@@ -1,0 +1,37 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/wildberries-agent-integration
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e .
+      - run: python -m pytest -q
+      - run: ruff check src tests
+      - run: python -m compileall -q src
+      - name: Validate plugin manifests
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in (Path('.codex-plugin/plugin.json'), Path('.claude-plugin/plugin.json')):
+              data = json.loads(path.read_text())
+              assert data['name'] == 'wildberries-agent-integration'
+              assert data['version'] == '0.1.0'
+          json.loads(Path('.mcp.json').read_text())
+          PY

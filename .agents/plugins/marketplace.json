@@ -1,0 +1,20 @@
+{
+  "name": "personal",
+  "interface": {
+    "displayName": "Personal"
+  },
+  "plugins": [
+    {
+      "name": "wildberries-agent-integration",
+      "source": {
+        "source": "local",
+        "path": "./plugins/wildberries-agent-integration"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Analytics"
+    }
+  ]
+}
