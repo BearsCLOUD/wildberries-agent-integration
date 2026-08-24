@@ -57,9 +57,9 @@ Privacy и Terms сейчас описывают адаптер и требов�
 MCP URL, доменную проверку, annotations всех tools, starter prompts, ровно пять положительных и
 три отрицательных теста, доступность по странам и release notes.
 
-Публичная подача должна использовать один рабочий Universal Streamable HTTP URL. Локальный
-`.mcp.json` не является production endpoint. `seller.bears.ru` — только браузерный onboarding;
-не указывайте его как MCP host.
+Публичная подача должна использовать один рабочий Universal Streamable HTTP URL:
+`https://wb.seller.bears.ru/mcp`. `seller.bears.ru` — только браузерный onboarding; не указывайте
+его как MCP host.
 
 Домен MCP должен вернуть только выданный OpenAI challenge token по
 `/.well-known/openai-apps-challenge`. Не указывайте `mcp.bears.ru` или другой адрес без
@@ -84,9 +84,9 @@ claude plugin validate plugins/wildberries-agent-integration
 
 Claude Connector и ChatGPT требуют опубликованный HTTPS Streamable HTTP endpoint с корректной
 аутентификацией. Claude Desktop/Code использует
-`plugins/wildberries-agent-integration/claude/mcp.json`, Codex — корневой `.mcp.json`.
-Плагин также содержит шестнадцать русскоязычных навыков; их можно импортировать при сканировании
-MCP или использовать из каталога плагина.
+`plugins/wildberries-agent-integration/claude/mcp.json`. Codex-пакет не распространяет локальный
+MCP server: до выдачи OpenAI зарегистрированного remote app ID он устанавливает только шестнадцать
+русскоязычных навыков и не создаёт ложный или дублирующий credential/backend contour.
 
 ## Границы и безопасность
 

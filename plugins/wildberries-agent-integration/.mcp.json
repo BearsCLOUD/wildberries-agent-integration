@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "wildberries-agent-integration": {
-      "command": "python3",
-      "args": ["./scripts/run_mcp.py"],
-      "cwd": "."
-    }
-  }
-}
