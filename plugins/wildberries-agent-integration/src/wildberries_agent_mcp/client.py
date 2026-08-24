@@ -31,7 +31,7 @@ class SellerGatewayClient:
         path: str,
         method: str = "GET",
         params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
+        json: dict[str, Any] | list[int] | None = None,
         request_id: str | None = None,
     ) -> Any:
         if not self.settings.gateway_url:

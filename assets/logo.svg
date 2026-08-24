@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Wildberries Agent Integration</title>
+  <desc id="desc">Оригинальный геометрический знак агента, данных и товара</desc>
+  <defs>
+    <linearGradient id="bg" x1="24" y1="20" x2="232" y2="238" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D28D9"/>
+      <stop offset="0.52" stop-color="#A21CAF"/>
+      <stop offset="1" stop-color="#E11D48"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="55" y1="52" x2="192" y2="204" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF" stop-opacity=".96"/>
+      <stop offset="1" stop-color="#F5D0FE" stop-opacity=".82"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#3B0764" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="64" fill="url(#bg)"/>
+  <path d="M43 105V78c0-17 14-31 31-31h15l12 15h54l12-15h15c17 0 31 14 31 31v27" fill="none" stroke="#FFF" stroke-opacity=".2" stroke-width="10" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <path d="M52 112c0-16 13-29 29-29h94c16 0 29 13 29 29v60c0 20-16 36-36 36H88c-20 0-36-16-36-36z" fill="url(#shine)"/>
+    <circle cx="97" cy="135" r="11" fill="#7C3AED"/>
+    <circle cx="159" cy="135" r="11" fill="#7C3AED"/>
+    <path d="M92 171c13 12 35 12 48 0" fill="none" stroke="#7C3AED" stroke-width="9" stroke-linecap="round"/>
+    <path d="M78 190h100" stroke="#E879F9" stroke-width="8" stroke-linecap="round"/>
+    <path d="M87 190v-22M112 190v-38M137 190v-28M162 190v-48" stroke="#A21CAF" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <circle cx="218" cy="39" r="7" fill="#FDE68A"/>
+  <circle cx="39" cy="213" r="5" fill="#FDE68A" fill-opacity=".8"/>
+</svg>

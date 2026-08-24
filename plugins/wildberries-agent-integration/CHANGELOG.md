@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10
+
+- Added the exact OpenAI domain-verification challenge route for a production deployment.
+- Added bounded review and rating reads through the existing Seller Gateway plus a Russian review-analysis skill.
+- Added a Russian skill for capability-driven read-only Wildberries Seller API operations.
+- Added a Russian OpenAI Plugins Directory submission pack, reviewer scenarios, and listing copy.
+- Reworked the repository presentation around free agent analytics, replenishment, and secure Seller ownership.
+
 ## 0.1.9
 
 - Added Russian skills for competitor analysis, competitive pricing, regional sales, weather impact,

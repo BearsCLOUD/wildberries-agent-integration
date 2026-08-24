@@ -12,6 +12,7 @@ class Settings:
     identity_bridge_url: str = ""
     public_url: str = ""
     auth_issuer: str = ""
+    openai_apps_challenge: str = ""
     connect_url: str = ""
     timeout_seconds: float = 20.0
     environment: str = "production"
@@ -38,6 +39,7 @@ class Settings:
             identity_bridge_url=getenv("SELLER_IDENTITY_BRIDGE_URL", "").rstrip("/"),
             public_url=getenv("MCP_PUBLIC_URL", "").rstrip("/"),
             auth_issuer=getenv("MCP_AUTH_ISSUER", "").rstrip("/"),
+            openai_apps_challenge=getenv("OPENAI_APPS_CHALLENGE", "").strip(),
             connect_url=getenv(
                 "SELLER_CONNECT_URL",
                 "https://seller.bears.ru/authentication/registration",

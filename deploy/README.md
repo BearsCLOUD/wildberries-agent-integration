@@ -1,22 +1,23 @@
-# Hosted MCP handoff
+# Публикация MCP
 
-This compose file runs the Streamable HTTP MCP server. Deploy it beside the analytics service,
-put it behind an HTTPS reverse proxy and an OAuth 2.1/PKCE identity bridge before giving the URL
-to ChatGPT or Claude. `seller.bears.ru` is used only for browser registration and supplier linking.
+Compose запускает MCP-сервер по Streamable HTTP. Перед подключением ChatGPT или Claude сервер
+нужно разместить рядом с сервисом аналитики, закрыть HTTPS и подключить Seller как OAuth 2.1/PKCE
+identity provider. `seller.bears.ru` остаётся браузерной точкой регистрации и привязки поставщика.
 
-Required production variables:
+Обязательные production-переменные:
 
-- `SELLER_GATEWAY_URL=https://...`
-- `SELLER_IDENTITY_BRIDGE_URL=https://...`
+- `SELLER_GATEWAY_URL=https://passport.bears.ru`
+- `SELLER_IDENTITY_BRIDGE_URL=https://passport.bears.ru/mcp/identity/exchange`
 - `SELLER_CONNECT_URL=https://.../integration`
 - `MCP_PUBLIC_URL=https://...`
-- `MCP_AUTH_ISSUER=https://...`
+- `MCP_AUTH_ISSUER=https://passport.bears.ru`
+- `OPENAI_APPS_CHALLENGE=<token из OpenAI Platform>`
 
-The bridge receives the MCP bearer and `X-Identity-Audience: seller-gateway`, then returns a
-short-lived Seller bearer for the signed-in user. It must enforce the free core-agent entitlement
-and user/supplier ownership. Do not set `SELLER_ACCESS_TOKEN` in this deployment.
-See [identity-bridge.md](../docs/identity-bridge.md) for the response contract and entitlement
-boundary.
+Bridge принимает MCP bearer и `X-Identity-Audience: seller-gateway`, затем возвращает
+короткоживущий Seller bearer вошедшего пользователя. Он обязан выдавать бесплатный agent
+entitlement и сохранять проверку принадлежности пользователя и поставщика. Не задавайте
+`SELLER_ACCESS_TOKEN` в публичном deployment. Контракт ответа описан в
+[identity-bridge.md](../docs/identity-bridge.md).
 
 ```bash
 cp plugins/wildberries-agent-integration/.env.example plugins/wildberries-agent-integration/.env
@@ -24,7 +25,8 @@ cp plugins/wildberries-agent-integration/.env.example plugins/wildberries-agent-
 docker compose -f deploy/docker-compose.yml up --build -d
 curl -fsS https://your-host.example/healthz
 curl -fsS https://your-host.example/.well-known/oauth-protected-resource/mcp
+curl -fsS https://your-host.example/.well-known/openai-apps-challenge
 ```
 
-The repository does not claim a live host. DNS, TLS, OAuth registration, reviewer access, and
-production secrets remain deployment-owned operations.
+Репозиторий не заявляет, что публичный host уже запущен. DNS, TLS, OAuth-регистрация, доступ
+ревьюера и production-секреты остаются отдельными операциями владельца deployment.

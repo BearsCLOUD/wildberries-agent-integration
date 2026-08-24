@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from starlette.testclient import TestClient
 
 from wildberries_agent_mcp.calculations import (
     inventory_forecast,
@@ -134,9 +135,15 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
 
     assert annotations["wb_connect_supplier"].readOnlyHint is False
     assert annotations["wb_upload_cost_price"].readOnlyHint is False
-    for name in names - {"wb_connect_supplier", "wb_upload_cost_price"}:
+    for name in names - {
+        "wb_connect_supplier",
+        "wb_upload_cost_price",
+        "wb_wildberries_proxy",
+    }:
         assert annotations[name].readOnlyHint is True
         assert annotations[name].openWorldHint is False
+    assert annotations["wb_wildberries_proxy"].readOnlyHint is False
+    assert annotations["wb_wildberries_proxy"].destructiveHint is False
 
 
 def test_supplier_handoff_supports_new_seller_registration_without_mcp_bearer() -> None:
@@ -379,3 +386,31 @@ def test_handoff_urls_reject_credentials_and_non_https_production_urls() -> None
     assert _safe_handoff_url("http://127.0.0.1:8000/integration", require_https=False)
     assert _secure_base_url("https://agents.example.com") == "https://agents.example.com"
     assert _secure_base_url("https://agents.example.com?token=secret") is None
+
+
+def test_openai_domain_challenge_returns_exact_plain_text_token() -> None:
+    server = build_server(
+        Settings(
+            public_url="https://mcp.example.com",
+            auth_issuer="https://auth.example.com",
+            openai_apps_challenge="openai-verification-token",
+        )
+    )
+
+    with TestClient(server.streamable_http_app()) as client:
+        response = client.get("/.well-known/openai-apps-challenge")
+
+    assert response.status_code == 200
+    assert response.text == "openai-verification-token"
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_openai_domain_challenge_fails_closed_when_not_configured() -> None:
+    server = build_server(Settings(openai_apps_challenge="bad token"))
+
+    with TestClient(server.streamable_http_app()) as client:
+        response = client.get("/.well-known/openai-apps-challenge")
+
+    assert response.status_code == 404
+    assert response.headers["cache-control"] == "no-store"

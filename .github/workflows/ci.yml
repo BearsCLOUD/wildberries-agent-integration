@@ -32,14 +32,14 @@ jobs:
           for path in (Path('.codex-plugin/plugin.json'), Path('.claude-plugin/plugin.json')):
               data = json.loads(path.read_text())
               assert data['name'] == 'wildberries-agent-integration'
-              assert data['version'] == '0.1.9'
+              assert data['version'] == '0.1.10'
           json.loads(Path('.mcp.json').read_text())
           claude = json.loads(Path('.claude-plugin/plugin.json').read_text())
           assert claude['mcpServers'] == './claude/mcp.json'
           json.loads(Path('claude/mcp.json').read_text())
           skills = Path('skills')
           skill_files = sorted(skills.glob('*/SKILL.md'))
-          assert len(skill_files) == 14
+          assert len(skill_files) == 16
           for skill_file in skill_files:
               lines = skill_file.read_text(encoding='utf-8').splitlines()
               assert lines[0] == '---'

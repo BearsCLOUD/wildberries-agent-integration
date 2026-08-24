@@ -36,7 +36,7 @@ rankings, exact demand, or causal attribution.
 
 1. `wb_connect_supplier`: start a browser handoff to the existing secure onboarding flow. The Wildberries token is entered outside the prompt and is never returned to the agent.
 2. `wb_analytics_summary` and `wb_warehouse_stock`: read user-scoped analytics and stock data through the Seller gateway.
-3. `wb_wildberries_proxy`: call one fixed, read-only Seller Gateway operation. The model cannot supply a token, host, URL, path, HTTP method, or headers.
+3. `wb_wildberries_proxy`: call one reviewed Seller Gateway operation. The allowlist includes reads and enqueueing the existing analytics refresh; the model cannot supply a token, host, URL, path, HTTP method, or headers.
 4. `wb_competitor_analysis`: summarize a caller-supplied, comparable competitor sample inside an authenticated supplier scope. No sample means `source_required`, not an invented conclusion.
 5. `wb_competitive_price`: calculate the sample's quartile price corridor and seller position; optional cost inputs are constraints, not a complete profitability model.
 6. `wb_sales_by_region`: aggregate explicit rows or, for an authenticated supplier and `nm_id`, read the fixed `/statistics/tape/v2` source and filter the requested period locally. It must not infer buyer region from a warehouse or logistics hub.
@@ -100,7 +100,7 @@ not publish or mutate a Wildberries card without a separate explicit user action
 
 ### Proxy ownership boundary
 
-`wb_wildberries_proxy` is a public MCP tool with a fixed read-only Seller Gateway contract, not an
+`wb_wildberries_proxy` is a public MCP tool with a fixed reviewed Seller Gateway contract, not an
 arbitrary upstream proxy. Its MCP arguments are `supplier_id_wb`, an allowlisted `operation`, and a
 bounded operation-specific `payload`. It must not accept a raw token, upstream URL, HTTP method,
 arbitrary path, headers, or arbitrary provider body. Seller Gateway owns authentication, supplier

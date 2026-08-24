@@ -1,98 +1,112 @@
-# Подача в публичный каталог
+# Публичное описание и подготовка каталога
 
-Репозиторий готов к передаче в каталог, но сам по себе не является размещённым сервисом. MCP
-размещается рядом с сервером аналитики; `seller.bears.ru` остаётся браузерным onboarding-сервисом.
-Для подачи нужны публичный HTTPS-адрес MCP, OAuth identity bridge, URL поддержки, deployment-specific
-уведомления о приватности и условиях, логотип и тестовый аккаунт рецензента.
+Статус: исходники плагина подготовлены, но заявка в каталог OpenAI не создана и не отправлена.
+Публичный MCP host, deployment подготовленного Seller OAuth bridge, reviewer account и домен
+проверки должны быть подтверждены отдельно. Поля для копирования, тесты и список блокеров собраны в
+[пакете подачи OpenAI](openai-submission.md).
 
-Публичная карточка позиционирует плагин как бесплатную русскоязычную аналитику
-Wildberries через MCP. «Бесплатно» означает отсутствие лицензионной, seat- или помесячной
-платы за вызовы плагина. Это не отменяет тарифы Wildberries или стоимость внешней
-инфраструктуры.
+## Позиционирование
+
+**Интеграция агента Wildberries** — бесплатный русскоязычный плагин для Codex, ChatGPT и
+Claude: MCP-сервер и навыки для продавца Wildberries. Он объединяет аналитику продаж, заказов,
+цен, остатков и отзывов с калькулятором юнит-экономики, прогнозом пополнения и направлений, SEO карточки,
+сравнением конкурентов, региональным разрезом, проверкой погодных гипотез, созданием карточки,
+дизайн-системой и генерацией фото.
+
+Короткое описание для карточки:
+
+> Русскоязычная аналитика Wildberries, SEO, карточки и прогноз пополнения через MCP.
+
+Полное описание для карточки:
+
+> Бесплатный русскоязычный плагин для продавцов Wildberries в Codex, ChatGPT и Claude.
+> Анализируйте продажи, конкурентов, цены и доступный разрез «товар × регион»; проверяйте
+> погодные гипотезы и SEO карточки; создавайте структуру карточки, дизайн-систему и варианты
+> фото; считайте юнит-экономику и прогнозируйте, сколько товара и куда везти. Токен поставщика
+> вводится только в защищённом интерфейсе Seller. Выводы ограничены переданными источниками:
+> корреляция не доказывает причинность, SEO-оценка не является прогнозом позиции.
+
+Рекомендуемые поисковые ключи: `wildberries`, `аналитика Wildberries`, `конкуренты`, `сравнение
+цен`, `SEO Wildberries`, `карточка товара`, `дизайн-система`, `генерация фото`, `продажи по
+регионам`, `погода и продажи`, `юнит-экономика`, `прогноз пополнения`, `MCP`, `Codex`, `Claude`.
+Использовать их естественно, без переспама.
+
+«Бесплатно» означает отсутствие лицензионной, seat- или помесячной платы за функционал плагина.
+Это не отменяет возможные тарифы Wildberries, внешних провайдеров и инфраструктуры.
+
+## Канонические ссылки
+
+- Репозиторий: <https://github.com/BearsCLOUD/wildberries-agent-integration>
+- Поддержка: <https://github.com/BearsCLOUD/wildberries-agent-integration/issues>
+- Privacy draft: <https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/PRIVACY.md>
+- Terms draft: <https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/TERMS.md>
+- Браузерная регистрация Seller: <https://seller.bears.ru/authentication/registration>
+- MCP contract: [docs/mcp-contract.md](mcp-contract.md)
+- Identity bridge contract: [docs/identity-bridge.md](identity-bridge.md)
+- Пакет подачи: [docs/openai-submission.md](openai-submission.md)
+
+Privacy и Terms сейчас описывают адаптер и требования к hosted deployment. Перед подачей нужно
+опубликовать точные controller, retention, deletion, subprocessors, support и jurisdiction для
+фактического размещения.
 
 ## OpenAI / ChatGPT
 
-- Передайте канонический каталог `plugins/wildberries-agent-integration`.
-- Используйте опубликованный Streamable HTTP URL, а не локальную команду из `.mcp.json`.
-- Укажите подтверждённые данные разработчика и аккаунт рецензента без обязательной MFA или private network.
-- Приложите короткий набор положительных и отрицательных сценариев вызова инструментов из раздела проверки.
-- Сверьте обещание бесплатного агентского функционала с биллингом и метаданными каталога. Bridge
-  должен выдавать техническую отметку бесплатного доступа без платного тарифа, seat и платы за
-  вызов; ownership Seller при этом сохраняется.
-- Описывайте `wb_wildberries_proxy` только как фиксированный read-only контракт Seller Gateway,
-  а не как прямой доступ к Wildberries. Модель не передаёт токен, URL, HTTP-метод, путь или
-  заголовки; внутренний `wb_proxy` остаётся адаптером реализации. Seller Gateway владеет
-  проверкой authenticated owner, supplier scope и хранимой WB credential.
-- Live-доступность каждой proxy-операции зависит от deployment Seller Gateway. Не указывайте
-  production host как рабочий без отдельной функциональной проверки.
-- Приложите [контракт identity bridge](identity-bridge.md) и описание entitlement.
+Официальный путь — [Submit plugins](https://developers.openai.com/plugins/deploy/submission) и
+[OpenAI Platform → Plugins](https://platform.openai.com/plugins). Для этого репозитория нужен
+вариант **With MCP**, объединяющий MCP и загружаемые/импортируемые навыки. Форма требует listing,
+MCP URL, доменную проверку, annotations всех tools, starter prompts, ровно пять положительных и
+три отрицательных теста, доступность по странам и release notes.
 
-## Claude
+Публичная подача должна использовать один рабочий Universal Streamable HTTP URL. Локальный
+`.mcp.json` не является production endpoint. `seller.bears.ru` — только браузерный onboarding;
+не указывайте его как MCP host.
 
-- Проверьте тот же каталог командой `claude plugin validate plugins/wildberries-agent-integration`.
-- Для Claude Connector опубликуйте HTTPS Streamable HTTP MCP endpoint.
-- Для Claude Desktop/Claude Code используется `claude/mcp.json` с `${CLAUDE_PLUGIN_ROOT}`.
-  Codex использует корневой `.mcp.json` с относительным рабочим каталогом.
+Домен MCP должен вернуть только выданный OpenAI challenge token по
+`/.well-known/openai-apps-challenge`. Не указывайте `mcp.bears.ru` или другой адрес без
+функциональной проверки deployment. До закрытия блокеров нельзя писать, что плагин отправлен,
+одобрен или доступен в ChatGPT.
 
-## Текст и SEO-ключи карточки
+Полезные официальные материалы:
 
-Короткое описание:
+- [Plugin architecture](https://developers.openai.com/plugins/concepts/plugins)
+- [Submit plugins](https://developers.openai.com/plugins/deploy/submission)
+- [MCP server review requirements](https://developers.openai.com/plugins/deploy/app-review)
+- [Security & Privacy](https://developers.openai.com/plugins/guides/security-privacy)
+- [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt)
 
-> Аналитика Wildberries: конкуренты, цены, регионы, погода, SEO и юнит-экономика через MCP.
+## Claude и Codex
 
-Полное описание:
+Claude Code проверяет каталог командой:
 
-> Бесплатная русскоязычная MCP-интеграция для продавцов Wildberries. Анализируйте продажи,
-> сравнивайте явно указанных конкурентов и ценовой коридор, исследуйте доступный разрез
-> «товар × регион», создавайте структуру карточки и дизайн-систему, готовьте фото товара,
-> проверяйте погодные гипотезы и SEO-полноту карточки, считайте маржу и планируйте пополнение.
-> Каждый вывод ограничен переданными источниками; корреляция не выдаётся за причину, а SEO-оценка —
-> за прогноз позиции.
+```bash
+claude plugin validate plugins/wildberries-agent-integration
+```
 
-Рекомендуемые ключи: `wildberries`, `аналитика Wildberries`, `анализ конкурентов`,
-`сравнение цен`, `SEO Wildberries`, `создание карточки товара`, `дизайн-система`,
-`генерация фото товара`, `поисковая оптимизация`, `продажи по регионам`, `погода и продажи`,
-`юнит-экономика`, `прогноз пополнения`, `MCP`, `Codex`, `Claude`.
-Используйте их как метаданные и естественный текст, а не как переспам.
+Claude Connector и ChatGPT требуют опубликованный HTTPS Streamable HTTP endpoint с корректной
+аутентификацией. Claude Desktop/Code использует
+`plugins/wildberries-agent-integration/claude/mcp.json`, Codex — корневой `.mcp.json`.
+Плагин также содержит шестнадцать русскоязычных навыков; их можно импортировать при сканировании
+MCP или использовать из каталога плагина.
 
-Не обещайте точный прогноз будущих продаж, полноту рынка, данные конкурентов, которых нет в
-источнике, причинное «влияние погоды» или гарантию SEO-позиции. Не автоматизируйте звёзды, отзывы или создание
-аккаунтов: рост должен быть органическим и измеримым по реальным пользователям.
+## Границы и безопасность
 
-## Сценарии проверки
+- Токен Wildberries никогда не передаётся в MCP-аргументах, ответах или логах. Пользователь
+  вводит его только в Seller.
+- `wb_wildberries_proxy` — фиксированный Seller Gateway allowlist для чтения и постановки
+  обновления аналитики в очередь. Агент не задаёт
+  URL, HTTP-метод, путь, заголовки или credential; write-маршруты и удаление кампаний исключены.
+- `wb_upload_cost_price` — единственная явная запись бизнес-данных: себестоимость выбранного
+  `nm_id` в Seller после проверки bearer и supplier ownership; отдельная queue-операция только
+  запускает пересчёт аналитики.
+- SEO — прозрачная эвристика полноты контента, не гарантия позиции. Погодный результат —
+  корреляция по сопоставленным строкам, не доказательство причинности и не прогноз.
+- Конкурентный и региональный анализ ограничен фактически доступным источником; отсутствие строк
+  возвращает `source_required`, а не выдуманные значения.
+- Органический рост звёзд и пользователей не автоматизируется.
 
-Используйте их с тестовым аккаунтом после публикации host и identity bridge.
+## Принятие перед подачей
 
-Положительные:
-
-1. `wb_unit_economics` с ценой, себестоимостью, комиссией, логистикой и налогом возвращает
-   воспроизводимую маржу и формулу безубыточности.
-2. `wb_replenishment_math` с продажами, остатком, целевыми и безопасными днями, а также входящим
-   товаром возвращает неотрицательную рекомендацию целыми единицами.
-3. `wb_connect_supplier` возвращает HTTPS-переход Seller и никогда не просит токен в чате.
-4. `wb_analytics_summary` возвращает ограниченный период для поставщика текущего пользователя.
-5. `wb_inventory_forecast` возвращает количество, тип назначения, допущения и предупреждения.
-6. `wb_upload_cost_price` по явно указанным поставщику, `nm_id` и сумме записывает только
-   выбранные данные в Seller.
-7. `wb_competitor_analysis` на явной выборке возвращает ценовое сравнение, размер выборки и оговорку
-   о неполноте рынка.
-8. `wb_competitive_price` по переданным ценам возвращает коридор, медиану и позицию цены, но не меняет
-   цену и не обещает спрос.
-9. `wb_sales_by_region` группирует только строки с доступным региональным полем и отчитывается о пропусках.
-10. `wb_sales_weather_impact` на сопоставленных датах и регионах показывает корреляцию и прямо указывает, что она
-    не доказывает причину.
-11. `wb_seo_analytics` возвращает прозрачный breakdown по контенту и не выдаёт это за прогноз ранжирования.
-12. `wb_wildberries_proxy` принимает только allowlisted operation и bounded payload; сценарий
-    считается live-проверкой только на deployment, где Seller Gateway фактически настроен.
-
-Отрицательные:
-
-1. Вызов без bearer возвращает `auth_required` или OAuth challenge host, но не данные поставщика.
-2. Production без `SELLER_IDENTITY_BRIDGE_URL` возвращает `identity_bridge_not_configured` и не
-   обращается к Seller.
-3. URL перехода с параметром, похожим на токен, отклоняется как `unsafe_connect_url`.
-4. Пустая или невалидная выборка конкурентов не порождает цену, рыночную долю или спрос.
-5. Недостаточные или несопоставимые weather/sales rows возвращают недостаток данных, а не нулевое «влияние».
-6. Ненастроенный Seller Gateway возвращает `gateway_not_configured` и не выполняет direct provider request.
-7. `wb_wildberries_proxy` с неизвестной операцией возвращает `proxy_operation_not_allowed`; поле `payload`,
-   похожее на token, authorization или cookie, отклоняется до сетевого вызова.
+Подача возможна только после появления production MCP URL, deployment OAuth/identity bridge, тестового
+аккаунта без MFA/private network, challenge token, публичного URL готового логотипа, deployment-specific legal URLs,
+verified developer/business identity, выбранных стран и повторного Scan Tools. Полный список и
+ровно 5+3 тестов находятся в [пакете подачи](openai-submission.md).

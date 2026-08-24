@@ -8,11 +8,13 @@ or HTTP method.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
 MAX_PAYLOAD_BYTES = 16 * 1024
 MAX_LIST_ITEMS = 100
+_WB_OPERATION_ID = re.compile(r"^[a-z0-9_.-]{1,80}$")
 
 _SENSITIVE_PARTS = (
     "token",
@@ -37,7 +39,33 @@ _OPERATIONS = {
     "card_details": {"path": "/open_methods/get_cards_detail", "method": "POST"},
     "card_photos": {"path": "/open_methods/get_cards_photo", "method": "POST"},
     "price_block": {"path": "/open_methods/price_block", "method": "POST"},
+    "feedbacks": {"path": "/feedbacks/get_feedbacks", "method": "GET", "supplier": True},
+    "feedback_average": {
+        "path": "/feedbacks/average_valuation",
+        "method": "POST",
+        "supplier": True,
+    },
+    "wb_api_capabilities": {
+        "path_template": "/suppliers/{supplier_id_wb}/wb/capabilities",
+        "method": "GET",
+        "supplier": True,
+    },
+    "wb_api_operation": {
+        "path_template": "/suppliers/{supplier_id_wb}/wb/operations/{operation_id}",
+        "method": "POST",
+        "supplier": True,
+    },
     "seller_tape": {"path": "/statistics/tape/v2", "method": "GET", "supplier": True},
+    "analytics_refresh": {
+        "path_template": "/statistics/update/{supplier_id_wb}",
+        "method": "POST",
+        "supplier": True,
+    },
+    "analytics_refresh_status": {
+        "path_template": "/suppliers_analytics/status_update/{supplier_id_wb}",
+        "method": "GET",
+        "supplier": True,
+    },
     "kt_statistics_period": {
         "path": "/integration-wb/kt/statistics/period",
         "method": "POST",
@@ -85,7 +113,7 @@ def build_gateway_request(
 
     spec = _OPERATIONS[operation]
     query: dict[str, Any] = {}
-    body: dict[str, Any] | None = None
+    body: dict[str, Any] | list[int] | None = None
     if operation == "competitor_cards":
         query["nm_id"] = _positive_int(payload, "nm_id")
     elif operation == "competitor_orders":
@@ -108,6 +136,35 @@ def build_gateway_request(
         ):
             raise ValueError("proxy_payload_invalid")
         body = {"nm_ids": list(nm_ids)}
+    elif operation == "feedback_average":
+        nm_ids = payload.get("nm_ids")
+        if (
+            not isinstance(nm_ids, list)
+            or not 1 <= len(nm_ids) <= MAX_LIST_ITEMS
+            or any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in nm_ids)
+        ):
+            raise ValueError("proxy_payload_invalid")
+        # The Seller Gateway endpoint accepts the list as its JSON document.
+        body = list(nm_ids)
+    elif operation == "feedbacks":
+        query.update(
+            {
+                "supplier_id_wb": supplier_id_wb,
+                "take": _bounded_int(payload.get("take", 100), 1, 500),
+                "skip": _bounded_int(payload.get("skip", 0), 0, 10_000),
+                "order": payload.get("order", "desc"),
+            }
+        )
+        if query["order"] not in {"asc", "desc"}:
+            raise ValueError("proxy_payload_invalid")
+        nm_id = payload.get("nm_id")
+        if nm_id is not None:
+            query["nm_id"] = _positive_int(payload, "nm_id")
+        is_answered = payload.get("is_answered")
+        if is_answered is not None:
+            if type(is_answered) is not bool:
+                raise ValueError("proxy_payload_invalid")
+            query["is_answered"] = is_answered
     elif operation == "seller_tape":
         query.update(
             {
@@ -117,14 +174,49 @@ def build_gateway_request(
                 "page": _bounded_int(payload.get("page", 0), 0, 100),
             }
         )
+    elif operation == "analytics_refresh":
+        query["period"] = _bounded_int(payload.get("period", 1), 1, 366)
+    elif operation == "analytics_refresh_status":
+        if payload:
+            raise ValueError("proxy_payload_invalid")
+        query["type_update"] = "statistics"
     elif operation in {"kt_statistics_period", "kt_statistics_grouped", "promotion_details"}:
         query["supplier_id_wb"] = supplier_id_wb
         body = dict(payload)
     elif operation == "promotion_list":
         query["supplier_id_wb"] = supplier_id_wb
+    elif operation == "wb_api_capabilities":
+        if payload:
+            raise ValueError("proxy_payload_invalid")
+    elif operation == "wb_api_operation":
+        if set(payload) != {"operation_id", "payload"}:
+            raise ValueError("proxy_payload_invalid")
+        operation_id = payload.get("operation_id")
+        operation_payload = payload.get("payload")
+        if (
+            not isinstance(operation_id, str)
+            or _WB_OPERATION_ID.fullmatch(operation_id) is None
+            or not isinstance(operation_payload, Mapping)
+        ):
+            raise ValueError("proxy_payload_invalid")
+        body = {"payload": dict(operation_payload)}
+
+    if operation == "feedback_average":
+        query["supplier_id_wb"] = supplier_id_wb
+
+    path = spec.get("path_template", spec.get("path"))
+    if operation == "wb_api_capabilities":
+        path = path.format(supplier_id_wb=supplier_id_wb)
+    elif operation == "wb_api_operation":
+        path = path.format(
+            supplier_id_wb=supplier_id_wb,
+            operation_id=payload["operation_id"],
+        )
+    elif operation in {"analytics_refresh", "analytics_refresh_status"}:
+        path = path.format(supplier_id_wb=supplier_id_wb)
 
     return {
-        "path": spec["path"],
+        "path": path,
         "method": spec["method"],
         "params": query,
         "json": body,

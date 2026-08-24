@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">Wildberries Agent Integration — аналитика и пополнение</title>
+  <desc id="desc">Оригинальная иллюстрация: агент объединяет продажи, решения и безопасное подключение Seller</desc>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="1280" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#160B2E"/>
+      <stop offset=".55" stop-color="#311052"/>
+      <stop offset="1" stop-color="#5B163D"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="748" y1="72" x2="1185" y2="350" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF" stop-opacity=".96"/>
+      <stop offset="1" stop-color="#F5D0FE" stop-opacity=".9"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+    <filter id="card" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#0B0618" flood-opacity=".34"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="420" rx="28" fill="url(#surface)"/>
+  <circle cx="210" cy="60" r="170" fill="#A855F7" fill-opacity=".2" filter="url(#glow)"/>
+  <circle cx="1130" cy="375" r="180" fill="#FB7185" fill-opacity=".15" filter="url(#glow)"/>
+  <path d="M70 72h82" stroke="#FDE68A" stroke-width="4" stroke-linecap="round"/>
+  <text x="70" y="136" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="43" font-weight="750">Wildberries Agent</text>
+  <text x="70" y="184" fill="#F0ABFC" font-family="Inter,Arial,sans-serif" font-size="43" font-weight="750">Integration</text>
+  <text x="70" y="229" fill="#E9D5FF" font-family="Inter,Arial,sans-serif" font-size="19">Продажи · конкуренты · SEO · пополнение</text>
+  <text x="70" y="274" fill="#FFF" fill-opacity=".72" font-family="Inter,Arial,sans-serif" font-size="16">Русскоязычный MCP для Codex и Claude</text>
+  <g transform="translate(70 316)">
+    <rect width="125" height="36" rx="18" fill="#FFF" fill-opacity=".11" stroke="#FFF" stroke-opacity=".2"/>
+    <text x="62" y="24" text-anchor="middle" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="650">14 навыков</text>
+    <rect x="139" width="125" height="36" rx="18" fill="#FFF" fill-opacity=".11" stroke="#FFF" stroke-opacity=".2"/>
+    <text x="201" y="24" text-anchor="middle" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="650">14 tools</text>
+    <rect x="278" width="157" height="36" rx="18" fill="#FDE68A" fill-opacity=".9"/>
+    <text x="356" y="24" text-anchor="middle" fill="#451A03" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700">бесплатно</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="718" y="58" width="482" height="300" rx="22" fill="url(#panel)"/>
+    <rect x="748" y="88" width="160" height="74" rx="14" fill="#FFF"/>
+    <text x="768" y="116" fill="#6B21A8" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700">ПРОДАЖИ</text>
+    <text x="768" y="145" fill="#27123E" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="750">+28,4%</text>
+    <path d="M768 181l32-25 24 13 31-38 25 18" fill="none" stroke="#A21CAF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M768 203h180M768 225h150M768 247h170" stroke="#D8B4FE" stroke-width="9" stroke-linecap="round"/>
+    <rect x="966" y="88" width="204" height="170" rx="14" fill="#FFF"/>
+    <text x="988" y="116" fill="#6B21A8" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700">ПОПОЛНЕНИЕ</text>
+    <text x="988" y="147" fill="#27123E" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700">Сколько и куда</text>
+    <g transform="translate(988 169)">
+      <rect width="56" height="42" rx="10" fill="#F3E8FF"/>
+      <path d="M14 17h28v18H14zM19 17v-5h18v5" fill="none" stroke="#7C3AED" stroke-width="3"/>
+      <text x="78" y="18" fill="#4C1D95" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700">Центр</text>
+      <text x="78" y="37" fill="#6B7280" font-family="Inter,Arial,sans-serif" font-size="12">420 ед.</text>
+    </g>
+    <g transform="translate(988 223)">
+      <rect width="56" height="42" rx="10" fill="#FFE4E6"/>
+      <path d="M14 17h28v18H14zM19 17v-5h18v5" fill="none" stroke="#E11D48" stroke-width="3"/>
+      <text x="78" y="18" fill="#9F1239" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700">Восток</text>
+      <text x="78" y="37" fill="#6B7280" font-family="Inter,Arial,sans-serif" font-size="12">180 ед.</text>
+    </g>
+    <rect x="748" y="278" width="422" height="48" rx="12" fill="#27123E"/>
+    <circle cx="774" cy="302" r="8" fill="#FDE68A"/>
+    <text x="795" y="308" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14">Seller Gateway · token остаётся у Seller</text>
+  </g>
+</svg>

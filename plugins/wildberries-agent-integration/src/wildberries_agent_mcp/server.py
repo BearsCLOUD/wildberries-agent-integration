@@ -10,7 +10,7 @@ from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.types import ToolAnnotations
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 
 from .calculations import (
     aggregate_sales_by_region,
@@ -69,6 +69,25 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         return JSONResponse({"status": "ok", "service": "wildberries-agent-integration"})
 
     @server.custom_route(
+        "/.well-known/openai-apps-challenge",
+        methods=["GET"],
+        name="openai_apps_challenge",
+    )
+    async def openai_apps_challenge(_: Request) -> PlainTextResponse:
+        token = settings.openai_apps_challenge.strip()
+        if not token or len(token) > 512 or any(character.isspace() for character in token):
+            return PlainTextResponse(
+                "openai_apps_challenge_not_configured",
+                status_code=404,
+                headers={"Cache-Control": "no-store"},
+            )
+        return PlainTextResponse(
+            token,
+            media_type="text/plain",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @server.custom_route(
         "/.well-known/oauth-protected-resource", methods=["GET"], name="oauth_metadata"
     )
     @server.custom_route(
@@ -102,7 +121,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             readOnlyHint=False,
             destructiveHint=False,
             idempotentHint=True,
-            openWorldHint=True,
+            openWorldHint=False,
         ),
     )
     async def wb_connect_supplier(
@@ -322,9 +341,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "Агент передаёт только имя операции и данные запроса: URL, HTTP-метод и токен недоступны модели."
         ),
         annotations=ToolAnnotations(
-            readOnlyHint=True,
+            # The fixed operation set includes analytics_refresh, which enqueues
+            # an analytics refresh in Seller's existing Celery/Redis contour.
+            readOnlyHint=False,
             destructiveHint=False,
-            idempotentHint=True,
+            idempotentHint=False,
             openWorldHint=False,
         ),
     )

@@ -1,7 +1,8 @@
 # Identity bridge contract
 
-The plugin intentionally does not implement a user database or a Wildberries-token store. A hosted
-deployment supplies a small OAuth 2.1/PKCE identity bridge at `SELLER_IDENTITY_BRIDGE_URL`.
+The plugin intentionally does not implement a user database or a Wildberries-token store. Seller
+Gateway owns the OAuth 2.1/PKCE source contract at `https://passport.bears.ru` and exposes the
+identity bridge at `/mcp/identity/exchange` once that Gateway version is deployed.
 
 ## Exchange
 
@@ -14,8 +15,9 @@ X-Identity-Audience: seller-gateway
 X-Request-ID: <opaque-request-id>
 ```
 
-The bridge validates the agent token, maps its subject to the existing Seller user, and returns a
-short-lived Seller bearer. The agent surface is free for every connected Seller user: the bridge
+The bridge resolves the opaque, resource-bound agent token to an existing Seller session and returns
+the corresponding Seller bearer. Agent access records use hashed lookup keys and a bounded Redis
+TTL; they never contain a Wildberries credential. The agent surface is free for every connected Seller user: the bridge
 must not require a paid plan, seat, or per-call charge. Seller still enforces identity and supplier
 ownership before returning data or accepting a write:
 
@@ -30,7 +32,7 @@ ownership before returning data or accepting a write:
 ```
 
 The plugin also accepts `seller_access_token` for compatibility with an existing bridge. It sends
-only the returned bearer to Seller Gateway; the original agent token is never forwarded downstream.
+only the returned Seller bearer to Seller Gateway; the opaque agent token is never forwarded downstream.
 
 ## Бесплатный доступ
 
@@ -38,8 +40,9 @@ only the returned bearer to Seller Gateway; the original agent token is never fo
 подписка. Seller Gateway должен получать её из доверенного подписанного bridge-токена (или
 проверенного серверного introspection) и не требовать тариф, seat или оплату за вызов. Отметка
 остаётся привязанной к текущему пользователю и поставщику и разрешает опубликованные инструменты
-плагина; фиксированные read-only операции Seller Gateway дополнительно используют `wb:proxy:read`.
-Запись ограничена описанным `cost_price:write` и не превращается в произвольный API-прокси.
+плагина; фиксированные операции Seller Gateway дополнительно используют `wb:proxy:read`.
+Запись ограничена описанным `cost_price:write` и постановкой обновления аналитики в очередь;
+это не превращается в произвольный API-прокси.
 
 Finance and price enrichment may remain unavailable in older Gateway deployments; the plugin
 returns a warning instead of hiding the limitation. Once the entitlement is implemented for those
@@ -59,4 +62,6 @@ inside the browser flow; the agent does not add a second confirmation screen.
 - missing or invalid bridge configuration: fail closed with a stable error code;
 - expired/rejected agent bearer: return an OAuth challenge or `identity_bridge_rejected`;
 - bridge/upstream outage: return a generic availability error without provider response text;
-- no raw token persistence in the bridge, gateway logs, MCP process, or repository.
+- no Wildberries-token persistence in the bridge, gateway logs, MCP process, or repository;
+- the short-lived Seller bearer inside the OAuth agent-session record expires with its Redis TTL and
+  is never logged or returned except by the authenticated internal exchange.

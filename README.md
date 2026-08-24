@@ -1,154 +1,191 @@
-# Бесплатная аналитика Wildberries через MCP
+# Wildberries Agent Integration
 
-[![CI](https://github.com/BearsCLOUD/wildberries-agent-integration/actions/workflows/ci.yml/badge.svg)](https://github.com/BearsCLOUD/wildberries-agent-integration/actions/workflows/ci.yml)
-[![Релиз](https://img.shields.io/github/v/release/BearsCLOUD/wildberries-agent-integration)](https://github.com/BearsCLOUD/wildberries-agent-integration/releases)
-[![Звёзды](https://img.shields.io/github/stars/BearsCLOUD/wildberries-agent-integration)](https://github.com/BearsCLOUD/wildberries-agent-integration)
+<p align="center">
+  <img src="assets/logo.svg" width="88" height="88" alt="Wildberries Agent Integration">
+</p>
 
-Бесплатная MCP-интеграция для продавцов Wildberries в Codex, Claude и других
-MCP-клиентах. Она объединяет анализ продаж Wildberries, конкурентный анализ,
-сравнение цен, региональную аналитику, проверку погодных гипотез, SEO-анализ
-карточек, юнит-экономику и планирование пополнения.
+<p align="center"><strong>Бесплатная русскоязычная аналитика Wildberries для Codex, Claude и MCP-клиентов</strong></p>
 
-От вопроса к проверяемому числу и следующему действию:
+<p align="center">
+  <a href="https://github.com/BearsCLOUD/wildberries-agent-integration/actions/workflows/ci.yml"><img src="https://github.com/BearsCLOUD/wildberries-agent-integration/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/BearsCLOUD/wildberries-agent-integration/releases"><img src="https://img.shields.io/github/v/release/BearsCLOUD/wildberries-agent-integration" alt="Релиз"></a>
+  <a href="https://github.com/BearsCLOUD/wildberries-agent-integration"><img src="https://img.shields.io/github/stars/BearsCLOUD/wildberries-agent-integration" alt="Звёзды"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7C3AED.svg" alt="Лицензия MIT"></a>
+</p>
 
-- читайте продажи, заказы, финансы, цены и остатки через аккаунт Seller;
-- сравнивайте товар с явно указанными конкурентами и проверяйте ценовое позиционирование;
-- смотрите доступный разрез «товар × регион» без подмены региона складом;
-- сопоставляйте продажи с погодой и проверяйте SEO-гипотезы карточки;
-- считайте комиссию, логистику, налог, маржу и цену безубыточности;
-- прогнозируйте пополнение и показывайте распределение по складам или регионам;
-- запускайте подключение поставщика через существующий браузерный сценарий Seller.
+<p align="center">
+  <img src="assets/hero.svg" alt="Схема аналитики, калькуляторов и пополнения Wildberries через агента" width="100%">
+</p>
 
-Публичный MCP размещается рядом с сервером аналитики, а `seller.bears.ru` остаётся
-браузерной точкой регистрации, входа и подключения поставщика. Агентский
-функционал предоставляется бесплатно: у плагина нет лицензионной, seat- или
-помесячной платы за вызовы. Identity bridge выдаёт бесплатный доступ агенту без проверки платного
-тарифа; Seller всё равно проверяет личность пользователя и принадлежность поставщика. Тарифы
-Wildberries и инфраструктурные расходы остаются отдельными.
+Плагин соединяет агента с Seller и даёт продавцу понятный путь от вопроса к числу и следующему действию:
+продажи, остатки, конкуренты, цены, регионы, SEO, контент карточки, юнит-экономика и пополнение.
+Агентский функционал бесплатен: у проекта нет платы за лицензию, место пользователя или вызов инструмента.
 
-## Граница безопасности
+## В двух словах
 
-В production MCP-сервер обменивает bearer агента через `SELLER_IDENTITY_BRIDGE_URL` и получает
-короткоживущий Seller bearer для текущего пользователя. В шлюз передаётся только этот bearer.
-Исходный токен агента и токен Wildberries никогда не попадают в URL, логи, файлы, аргументы
-инструментов или результаты MCP. Токен поставщика вводится только в Seller:
+- 16 русскоязычных навыков и 14 MCP-инструментов.
+- Безопасное подключение поставщика через `seller.bears.ru`: исходный WB-токен не вводится в чат.
+- Отдельный калькулятор пополнения и прогноз «сколько и куда везти».
+- Конкурентный анализ, ценовой коридор, продажи по доступному региональному полю, погодные гипотезы и SEO-оценка.
+- Подготовка карточки, дизайн-системы и фото товара — без автоматической публикации в Wildberries.
+- MIT, открытый исходный код, бесплатная агентская поверхность.
 
-`Интеграция → Добавить поставщика → Персональный API-токен`
+## Калькулятор и пополнение
 
-MCP не является произвольным прокси к Wildberries или внутренним сервисам. Public tool
-`wb_wildberries_proxy` принимает только `supplier_id_wb`, имя фиксированной read-only операции и
-ограниченный `payload`. Сырой токен, URL, HTTP-метод, путь и заголовки недоступны агенту.
-Seller Gateway владеет проверкой authenticated owner, supplier scope, разрешённой операции и выбором
-хранимой WB credential. Фактическая live-доступность каждой операции зависит от конфигурации
-Seller Gateway; эта документация не утверждает, что конкретный production host уже принял вызов.
+Это центральный операционный сценарий плагина:
 
-Релиз ориентирован на чтение и расчёты. Единственная запись — установка явно указанной себестоимости;
-цены, скидки и настройки поставщика не меняются.
+1. `wb_replenishment_math` быстро считает количество единиц по дневному спросу, остатку, товару в пути и целевому покрытию.
+2. `wb_inventory_forecast` учитывает доступные остатки и спрос, предлагает направления по складам или регионам и показывает допущения.
+3. Если складская география недоступна, результат честно помечается как региональная эвристика — без выдуманного распределения.
 
-## Инструменты
+Калькуляторы ничего не заказывают и не меняют остатки. Это воспроизводимая рекомендация для планирования.
 
-| Инструмент | Назначение | Авторизация |
-| --- | --- | --- |
-| `wb_connect_supplier` | Открыть безопасное подключение поставщика | Браузерный сценарий |
-| `wb_list_suppliers` | Показать поставщиков текущего пользователя | Seller bearer |
-| `wb_analytics_summary` | Продажи и заказы, с доступным финансовым и ценовым обогащением | Seller bearer |
-| `wb_warehouse_stock` | Остатки Wildberries по `nm_id` и складам | Seller bearer |
-| `wb_wildberries_proxy` | Вызвать фиксированную read-only операцию Seller Gateway | Seller bearer |
-| `wb_competitor_analysis` | Сравнить товар с переданными наблюдениями по конкурентам | Seller bearer |
-| `wb_competitive_price` | Рассчитать ценовой коридор по явной выборке | Не требуется |
-| `wb_sales_by_region` | Сгруппировать строки по региону или прочитать ограниченную ленту для `nm_id` | Seller bearer |
-| `wb_sales_weather_impact` | Оценить корреляцию сопоставленных рядов продаж и погоды | Не требуется |
-| `wb_seo_analytics` | Проверить заголовок, описание, ключи и характеристики карточки | Не требуется |
-| `wb_upload_cost_price` | Записать явно указанную себестоимость товара в Seller | Seller bearer |
-| `wb_unit_economics` | Калькулятор маржи и безубыточности | Не требуется |
-| `wb_replenishment_math` | Быстрый расчёт количества пополнения | Не требуется |
-| `wb_inventory_forecast` | Прогноз количества и направлений пополнения | Seller bearer |
+## Возможности
 
-## Навыки агента
+| Группа | Что умеет агент |
+| --- | --- |
+| Аналитика | Продажи, заказы, финансы, цены, остатки и сводки за период |
+| Решения | Юнит-экономика, маржа, точка безубыточности, цена и пополнение |
+| Рынок | Явно переданные наблюдения конкурентов и конкурентный ценовой коридор |
+| Репутация | Отзывы, средняя оценка, повторяющиеся жалобы и список без ответа |
+| География | Продажи в разрезе товара и доступного региона; локальные дефициты |
+| Гипотезы | Сопоставление продаж с погодой без заявления причинности |
+| Контент | SEO-проверка, структура карточки, дизайн-система и варианты фото |
+| Интеграция | Защищённая регистрация, запись себестоимости и allowlist Seller Gateway |
 
-В комплекте 14 русскоязычных навыков: аналитическая сводка, подключение поставщика, загрузка
-себестоимости, юнит-экономика, калькулятор пополнения, прогноз по складам, анализ конкурентов,
-конкурентная цена, продажи по регионам, погодные гипотезы, SEO карточки, создание карточек,
-дизайн-система и генерация фото товара. Навыки дают агенту пошаговые правила и ограничения;
-токены и публикация в Wildberries остаются за пределами чата.
+### MCP-инструменты
 
-Архитектура источников и ограничения по конкурентным и погодным провайдерам описаны в
-[competitive landscape](docs/competitive-landscape.md); это не обещание встроенного доступа к
-платным сервисам без их API и лицензии.
+| Инструмент | Назначение |
+| --- | --- |
+| `wb_connect_supplier` | Открыть защищённый сценарий подключения поставщика |
+| `wb_list_suppliers` | Показать поставщиков текущего пользователя |
+| `wb_analytics_summary` | Сводка продаж, заказов, финансов, цен и остатков |
+| `wb_warehouse_stock` | Остатки по товару и складам |
+| `wb_wildberries_proxy` | Фиксированные операции Seller Gateway, включая очередь обновления аналитики |
+| `wb_competitor_analysis` | Сравнение с явно переданными конкурентами |
+| `wb_competitive_price` | Коридор цены и проверяемые сценарии |
+| `wb_sales_by_region` | Продажи по доступному региональному полю |
+| `wb_sales_weather_impact` | Корреляция продаж и погодных рядов |
+| `wb_seo_analytics` | Проверка контента карточки и поисковых ключей |
+| `wb_upload_cost_price` | Запись указанной себестоимости в Seller |
+| `wb_unit_economics` | Маржа, безубыточность и сценарии |
+| `wb_replenishment_math` | Быстрый расчёт количества пополнения |
+| `wb_inventory_forecast` | Прогноз количества и направлений пополнения |
 
-Запись себестоимости выполняется сразу по явно указанным поставщику, `nm_id` и сумме и меняет
-только выбранный `nm_id` в Seller. Прогноз возвращает период, формулу, распределение, статус источников и предупреждения. Это
-рекомендация для планирования, а не гарантия будущего спроса. При отсутствии складских данных
-направления помечаются как региональная эвристика.
+## Быстрый старт
 
-Новые аналитические функции также показывают границы вывода:
+### Codex
 
-- без сравнимых строк конкурентов анализ требует источник, а не возвращает выдуманную оценку;
-- ценовой коридор описывает переданную выборку, но не доказывает спрос или прибыльность;
-- региональный отчёт использует только фактическое географическое поле и не выводит регион покупателя из склада;
-- погодный анализ показывает наблюдаемую корреляцию, но не доказывает причинность и не обещает объём продаж;
-- SEO-оценка — прозрачная эвристика полноты контента, а не прогноз позиции, CTR или конверсии Wildberries.
+```bash
+git clone https://github.com/BearsCLOUD/wildberries-agent-integration.git
+cd wildberries-agent-integration
+codex plugin marketplace add ./.agents/plugins
+codex plugin add wildberries-agent-integration@wildberries-agent
+```
 
-## Локальная разработка
+Каталог плагина описан в `.agents/plugins/marketplace.json`, манифест — в
+`plugins/wildberries-agent-integration/.codex-plugin/plugin.json`.
+
+### Claude
+
+Для локального Claude Code подключите MCP-команду из корня репозитория:
+
+```bash
+claude mcp add --transport stdio wildberries-agent -- \
+  python3 "$PWD/plugins/wildberries-agent-integration/scripts/run_mcp.py"
+```
+
+Манифест Claude находится в `plugins/wildberries-agent-integration/.claude-plugin/plugin.json`,
+а готовая конфигурация — в `plugins/wildberries-agent-integration/claude/mcp.json`.
+Для проверки манифеста:
+
+```bash
+claude plugin validate plugins/wildberries-agent-integration
+```
+
+### Локальный MCP
 
 ```bash
 cd plugins/wildberries-agent-integration
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -e .
-cp .env.example .env
+python3 -m pip install -e .
+export APP_ENV=development
 export SELLER_GATEWAY_URL=http://127.0.0.1:8000
-export SELLER_CONNECT_URL=https://seller.example.com/integration
+export SELLER_CONNECT_URL=https://seller.bears.ru/authentication/registration
 wildberries-agent-mcp
 ```
 
-Для локального MCP-клиента используйте комплектный `.mcp.json`. Для HTTP-сервера:
+Для Streamable HTTP:
 
 ```bash
-wildberries-agent-mcp --transport streamable-http --host 0.0.0.0 --port 8080
+wildberries-agent-mcp --transport streamable-http --host 127.0.0.1 --port 8080
 ```
 
-Production требует HTTPS и OAuth 2.1/PKCE identity bridge. Задайте
-`SELLER_IDENTITY_BRIDGE_URL`, `MCP_PUBLIC_URL` и `MCP_AUTH_ISSUER`; без bridge production/staging
-запросы завершаются fail-closed. `MCP_PUBLIC_URL` — адрес публичного MCP рядом с сервером
-аналитики, а `seller.bears.ru` используется только для регистрации/входа и добавления поставщика.
-Публичный адрес аналитического MCP намеренно не зашит в репозиторий.
+Локальный сервер требует доступный Seller Gateway для авторизованных аналитических вызовов.
+В production дополнительно нужны HTTPS и deployment подготовленного OAuth 2.1/PKCE identity bridge:
+`SELLER_IDENTITY_BRIDGE_URL`, `MCP_PUBLIC_URL` и `MCP_AUTH_ISSUER`.
 
-Бесплатная агентская поверхность включает статистику, список поставщиков, калькуляторы, запись
-себестоимости и прогноз дефицита. Если конкретный старый маршрут аналитики ещё не опубликован,
-плагин возвращает понятное предупреждение; это не превращается в платный экран. Если маршрут
-складских остатков не опубликован, прогноз использует региональный спрос и явно отмечает эвристику.
+## Как устроено подключение
 
-## Codex и Claude
+```mermaid
+flowchart LR
+    A[Codex / Claude] --> B[Публичный MCP]
+    B --> C[Identity bridge]
+    B --> D[Seller Gateway]
+    D --> E[Seller analytics]
+    D --> F[Хранимая WB credential]
+    U[Продавец] -->|токен только в браузере| S[seller.bears.ru]
+    S --> D
+```
 
-Канонический исходник плагина находится в `plugins/wildberries-agent-integration` и содержит
-manifest для Codex и Claude. Codex использует запись `.agents/plugins/marketplace.json`, Claude —
-`claude/mcp.json` с `${CLAUDE_PLUGIN_ROOT}`. Перед публичной подачей прочитайте
-[инструкции для каталога](docs/public-listing.md).
+`wb_wildberries_proxy` — не произвольный HTTP-прокси. Агент передаёт только `supplier_id_wb`,
+имя разрешённой операции и ограниченный payload. Он не видит токен, URL, HTTP-метод,
+путь или заголовки. Seller Gateway проверяет владельца и область поставщика, а затем сам выбирает
+хранимую credential. Единственные записи в текущем наборе — явно указанная себестоимость товара
+и постановка существующего обновления аналитики Seller в очередь; данные Wildberries не изменяются.
 
-## Карта исходников
+## 16 навыков
 
-Адаптер использует существующие маршруты Seller, не публикуя внутренние сервисы напрямую:
+Все навыки русскоязычные и лежат в [`plugins/wildberries-agent-integration/skills`](plugins/wildberries-agent-integration/skills/):
 
-- `/suppliers`;
-- `/statistics/report/combined`;
-- `/statistics/tape/v2` — единственный текущий supplier-scoped источник с регионом для разреза
-  «товар × регион»; нужен `nm_id`, а период фильтруется в ограниченной выборке;
-- `/statistics/orders`;
-- `/financial_report/dashboard/v2` (если разрешено entitlement);
-- `/price_management` (если разрешено entitlement);
-- `/price_management/stocks-report/wb-warehouses` (складской адаптер с региональным fallback).
+`analytics-summary` · `connect-supplier` · `cost-price-upload` · `unit-economics` ·
+`replenishment-calculator` · `inventory-forecast` · `competitor-analysis` ·
+`competitive-pricing` · `regional-sales` · `weather-impact` · `seo-analytics` ·
+`product-card` · `design-system` · `product-photo-generation` · `review-analysis` ·
+`wildberries-api`.
 
-`/statistics/report/combined` не содержит поля региона и не используется как источник
-«товар × регион». Фиксированные proxy-операции, включая карточки конкурентов, являются
-отдельным allowlisted Seller Gateway контрактом; их наличие в исходнике не доказывает live-доступность.
+Навыки готовят черновики и рекомендации. Публикация карточки, изменение цен и любые необратимые
+операции остаются за пределами текущей бесплатной поверхности.
 
-См. [SPEC.md](SPEC.md), [контракт MCP](docs/mcp-contract.md) и
-[контракт identity bridge](docs/identity-bridge.md). Перед каталогом опубликуйте
-[уведомление о приватности](plugins/wildberries-agent-integration/PRIVACY.md),
-[условия](plugins/wildberries-agent-integration/TERMS.md) и
-[канал поддержки](plugins/wildberries-agent-integration/SUPPORT.md).
+## Ограничения и честный статус
+
+- Конкуренты анализируются только по переданному или разрешённому источнику; полнота рынка не обещается.
+- Ценовой коридор описывает выборку, но не доказывает спрос или прибыльность.
+- Регион — только фактическое географическое поле источника, а не автоматически выведенный регион покупателя.
+- Погода показывает корреляцию совпавших рядов, а не причинное влияние и не прогноз продаж.
+- SEO — прозрачная эвристика контента, а не гарантия позиции, CTR или конверсии.
+- Внешние данные (конкуренты, погода) требуют совместимого API и соответствующей лицензии.
+
+Исходник и локальный MCP опубликованы; companion Seller source содержит OAuth 2.1/PKCE и
+reviewed WB API contracts. Production endpoint рядом с сервером аналитики и карточка
+в публичном каталоге ChatGPT/OpenAI требуют deployment, HTTPS/OAuth-реквизитов и проверки
+рецензентом. Пока такой функциональный deployment не подтверждён, проект не заявляет
+`runtime_accepted` и не выдаёт адрес-заглушку за работающий MCP.
+
+Порядок подачи описан в [`docs/public-listing.md`](docs/public-listing.md), контракт MCP — в
+[`docs/mcp-contract.md`](docs/mcp-contract.md), архитектурные ограничения — в [`SPEC.md`](SPEC.md).
+
+## Документация
+
+- [Ландшафт конкурентов и источники](docs/competitive-landscape.md)
+- [Identity bridge](docs/identity-bridge.md)
+- [Безопасность](SECURITY.md)
+- [Приватность](plugins/wildberries-agent-integration/PRIVACY.md)
+- [Условия использования](plugins/wildberries-agent-integration/TERMS.md)
+- [Поддержка](SUPPORT.md)
+- [История изменений](plugins/wildberries-agent-integration/CHANGELOG.md)
 
 ## Лицензия
 
-MIT. Подробности — в [LICENSE](plugins/wildberries-agent-integration/LICENSE).
+MIT — [LICENSE](LICENSE).
