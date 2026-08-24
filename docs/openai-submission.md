@@ -32,8 +32,8 @@
 | Поле | Значение |
 |---|---|
 | Тип URL | `Universal` после появления одного рабочего endpoint для всех пользователей |
-| MCP Server URL | `[BLOCKER] https://<production-mcp-host>/mcp` |
-| Авторизация | Подготовленный Seller OAuth 2.1/PKCE bridge после production deployment; reviewer-ready demo credentials без MFA, SMS, email confirmation и private network |
+| MCP Server URL | `[BLOCKER до runtime-проверки] https://mcp.bears.ru/mcp` |
+| Авторизация | Seller OAuth 2.1 с DCR и PKCE S256 после production deployment; отдельные reviewer credentials без MFA, SMS, email confirmation и private network |
 | Регистрация нового пользователя | `https://seller.bears.ru/authentication/registration` — браузерный Seller onboarding, не MCP host |
 | Domain verification | `https://<mcp-host>/.well-known/openai-apps-challenge`, ответ только точным challenge token в `text/plain` |
 | CSP | Указать только реально используемые UI-домены; для текущего MCP без UI не добавлять лишние домены |
@@ -63,7 +63,7 @@ header proxy. До появления production URL, identity bridge и тес�
 Тесты ниже предназначены для вкладки Testing. Сетевые тесты выполняются только после публикации
 рабочего host и demo account; локальные расчёты не требуют доступа к Seller.
 
-1. **Сводка продаж.** Вызвать `wb_analytics_summary` с `supplier_id_wb=123`, периодом
+1. **Сводка продаж.** Вызвать `wb_analytics_summary` с `supplier_id_wb=900000001`, периодом
    `2026-08-01`—`2026-08-14` и bearer тестового владельца. Ожидается ограниченный период,
    `ok=true`, сводка и отсутствие токена/секретов в ответе.
 2. **Калькулятор маржи.** Вызвать `wb_unit_economics` с ценой `1990`, себестоимостью `620`,
@@ -75,7 +75,7 @@ header proxy. До появления production URL, identity bridge и тес�
 4. **Подключение поставщика.** Вызвать `wb_connect_supplier` без токена в аргументах. Ожидается
    HTTPS-переход в Seller для регистрации/подключения и инструкция ввести токен в браузере;
    MCP не должен просить или возвращать исходный токен.
-5. **Безопасный proxy-read.** Вызвать `wb_wildberries_proxy` с `supplier_id_wb=123`,
+5. **Безопасный proxy-read.** Вызвать `wb_wildberries_proxy` с `supplier_id_wb=900000001`,
    `operation=seller_tape` и bounded payload с `nm_id`, `limit` и `page`. На настроенном
    Seller Gateway ожидается read-only ответ, supplier scope текущего владельца и отсутствие
    URL, HTTP-метода, заголовков и credential в результате.
@@ -123,7 +123,7 @@ header proxy. До появления production URL, identity bridge и тес�
 
 Текст release notes для текущей подачи:
 
-> Начальная подача/обновление до версии 0.1.12. Добавлены русскоязычные навыки для аналитики,
+> Начальная подача/обновление до версии 0.1.13. Добавлены русскоязычные навыки для аналитики,
 > конкурентов, ценового коридора, SEO, продаж по регионам, погодных гипотез, создания карточки,
 > дизайн-системы и генерации фото. MCP получил защищённое подключение поставщика, расчёт
 > юнит-экономики, калькулятор и прогноз пополнения, запись себестоимости и фиксированный

@@ -3,6 +3,8 @@
 Compose запускает MCP-сервер по Streamable HTTP. Перед подключением ChatGPT или Claude сервер
 нужно разместить рядом с сервисом аналитики, закрыть HTTPS и подключить Seller как OAuth 2.1/PKCE
 identity provider. `seller.bears.ru` остаётся браузерной точкой регистрации и привязки поставщика.
+Seller OAuth discovery публикует DCR для public clients ChatGPT и Claude; token exchange использует
+authorization code и PKCE S256 без client secret.
 
 Обязательные production-переменные:
 
@@ -19,7 +21,14 @@ entitlement и сохранять проверку принадлежности 
 `SELLER_ACCESS_TOKEN` в публичном deployment. Контракт ответа описан в
 [identity-bridge.md](../docs/identity-bridge.md).
 
-## Alpic
+## Production Zot
+
+Канонический production image публикуется как
+`registry.bears.ru/bearscloud/wildberries-agent-integration@sha256:<digest>`. GitOps desired state
+находится только в `BearsCLOUD/bears-infra`; credentials `ci-publisher` и `prod-pull` передаются
+через Infisical и не принадлежат этому репозиторию.
+
+## Опциональный Alpic
 
 Для воспроизводимой сборки используйте вложенный `alpic.json` и корень MCP-пакета:
 
