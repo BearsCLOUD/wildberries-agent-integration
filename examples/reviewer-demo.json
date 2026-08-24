@@ -3,7 +3,7 @@
   "sandbox": {
     "synthetic": true,
     "identity": "reviewer-sandbox",
-    "sandbox_access_token": "synthetic-agent-token",
+    "sandbox_access_token": "wb-agent-sandbox-token-v1",
     "outbound_wildberries_calls": false
   },
   "supplier_id_wb": 900000001,

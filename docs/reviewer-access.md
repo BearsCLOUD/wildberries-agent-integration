@@ -10,7 +10,7 @@
 | Поле | Значение |
 |---|---|
 | `identity` | `reviewer-sandbox` |
-| `sandbox_access_token` | `synthetic-agent-token` |
+| `sandbox_access_token` | `wb-agent-sandbox-token-v1` |
 | `supplier_id_wb` | `900000001` |
 
 Sandbox token не является Seller bearer или WB API token. Код sandbox обязан распознавать эти

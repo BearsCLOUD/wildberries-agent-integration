@@ -74,11 +74,11 @@ header proxy. В заявке используйте только провере
 ## Ровно 5 положительных тестов
 
 Тесты ниже предназначены для вкладки Testing. Reviewer выполняет их на виртуальных fixtures с
-`identity=reviewer-sandbox`, `sandbox_access_token=synthetic-agent-token` и
+`identity=reviewer-sandbox`, `sandbox_access_token=wb-agent-sandbox-token-v1` и
 `supplier_id_wb=900000001`; sandbox не ищет credentials и не вызывает Seller Gateway или Wildberries.
 
 1. **Сводка продаж.** Вызвать `wb_analytics_summary` с `supplier_id_wb=900000001`, периодом
-   `2026-08-01`—`2026-08-14` и `sandbox_access_token=synthetic-agent-token`. Ожидается ограниченный период,
+   `2026-08-01`—`2026-08-14` и `sandbox_access_token=wb-agent-sandbox-token-v1`. Ожидается ограниченный период,
    `ok=true`, сводка и отсутствие токена/секретов в ответе.
 2. **Калькулятор маржи.** Вызвать `wb_unit_economics` с ценой `1990`, себестоимостью `620`,
    комиссией `18`, логистикой `120`, хранением `14`, рекламой `80`, налогом `6`. Ожидаются
