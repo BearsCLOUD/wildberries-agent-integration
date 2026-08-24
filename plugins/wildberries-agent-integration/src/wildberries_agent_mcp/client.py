@@ -38,7 +38,11 @@ class SellerGatewayClient:
         if not authorization.startswith("Bearer "):
             raise GatewayError("auth_required", status=401)
 
-        headers = {"Authorization": authorization}
+        gateway_authorization = await self._resolve_authorization(
+            authorization, request_id
+        )
+
+        headers = {"Authorization": gateway_authorization}
         if request_id:
             headers["X-Request-ID"] = request_id
 
@@ -67,6 +71,42 @@ class SellerGatewayClient:
             return response.json()
         except ValueError as error:
             raise GatewayError("upstream_invalid_json") from error
+
+    async def _resolve_authorization(
+        self, authorization: str, request_id: str | None
+    ) -> str:
+        if not self.settings.requires_identity_bridge:
+            return authorization
+        if not self.settings.identity_bridge_url:
+            raise GatewayError("identity_bridge_not_configured")
+
+        headers = {
+            "Authorization": authorization,
+            "X-Identity-Audience": "seller-gateway",
+        }
+        if request_id:
+            headers["X-Request-ID"] = request_id
+        try:
+            async with httpx.AsyncClient(timeout=self.settings.timeout_seconds) as client:
+                response = await client.post(
+                    self.settings.identity_bridge_url,
+                    headers=headers,
+                )
+        except httpx.TimeoutException as error:
+            raise GatewayError("identity_bridge_timeout") from error
+        except httpx.RequestError as error:
+            raise GatewayError("identity_bridge_unavailable") from error
+
+        if response.status_code >= 400:
+            raise GatewayError("identity_bridge_rejected", status=response.status_code)
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise GatewayError("identity_bridge_invalid_json") from error
+        token = payload.get("seller_access_token") or payload.get("access_token")
+        if not isinstance(token, str) or not token.strip():
+            raise GatewayError("identity_bridge_missing_token")
+        return token if token.startswith("Bearer ") else f"Bearer {token}"
 
 
 def _status_code(status: int) -> str:

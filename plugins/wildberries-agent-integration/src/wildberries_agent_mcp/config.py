@@ -9,6 +9,7 @@ class Settings:
     """Environment-backed settings with a fail-closed production default."""
 
     gateway_url: str = ""
+    identity_bridge_url: str = ""
     connect_url: str = ""
     timeout_seconds: float = 20.0
     environment: str = "production"
@@ -32,6 +33,7 @@ class Settings:
 
         return cls(
             gateway_url=getenv("SELLER_GATEWAY_URL", "").rstrip("/"),
+            identity_bridge_url=getenv("SELLER_IDENTITY_BRIDGE_URL", "").rstrip("/"),
             connect_url=getenv("SELLER_CONNECT_URL", "").strip(),
             timeout_seconds=timeout_seconds,
             environment=getenv("APP_ENV", "production").lower().strip(),
@@ -43,3 +45,7 @@ class Settings:
     @property
     def allows_static_token(self) -> bool:
         return self.environment in {"development", "dev", "test"}
+
+    @property
+    def requires_identity_bridge(self) -> bool:
+        return self.environment in {"production", "prod", "staging"}

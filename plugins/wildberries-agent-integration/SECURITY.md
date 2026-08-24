@@ -6,6 +6,8 @@
 - Enter personal tokens only in the authenticated Seller browser flow.
 - Do not put bearer tokens in URLs, logs, traces, cache keys, issue reports, or screenshots.
 - Production HTTP transport requires HTTPS and an OAuth 2.1/PKCE identity bridge.
+- Production/staging requests require `SELLER_IDENTITY_BRIDGE_URL`; it exchanges the MCP bearer for a short-lived Seller bearer scoped to `seller-gateway`.
+- The original MCP bearer is never forwarded to Seller APIs, persisted, or written to logs.
 - `SELLER_ACCESS_TOKEN` is a development-only fallback and must not be set in public deployments.
 
 ## Data handling

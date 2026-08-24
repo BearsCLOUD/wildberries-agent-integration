@@ -9,6 +9,7 @@ from wildberries_agent_mcp.calculations import (
     replenishment_math,
     unit_economics,
 )
+from wildberries_agent_mcp.client import GatewayError, SellerGatewayClient
 from wildberries_agent_mcp.config import Settings
 from wildberries_agent_mcp.server import _compact, build_server
 
@@ -103,3 +104,17 @@ def test_credential_fields_are_removed_from_nested_results() -> None:
         "supplier_id": 31460,
         "nested": {"visible": "ok"},
     }
+
+
+def test_production_requires_identity_bridge_before_gateway_call() -> None:
+    client = SellerGatewayClient(
+        Settings(environment="production", gateway_url="https://seller.example")
+    )
+
+    with pytest.raises(GatewayError, match="identity_bridge_not_configured"):
+        asyncio.run(
+            client.request(
+                authorization="Bearer synthetic-mcp-token",
+                path="/suppliers",
+            )
+        )

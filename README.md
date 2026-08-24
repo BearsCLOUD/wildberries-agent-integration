@@ -13,7 +13,7 @@ Agent features are free. Wildberries fees, Seller service limits, and infrastruc
 
 ## Security boundary
 
-The MCP server forwards the authenticated Seller user context to the configured gateway. When available it starts the existing `GET /wb-oauth/authorize` flow; otherwise it opens the Seller integration page. A raw Wildberries token is never a tool argument, URL parameter, log field, repository file, or MCP result. Supplier tokens are entered only in the existing browser flow:
+The MCP server forwards the authenticated Seller user context to the configured gateway. In production it first exchanges the agent bearer through `SELLER_IDENTITY_BRIDGE_URL`; the bridge must return a short-lived Seller bearer. When available it starts the existing `GET /wb-oauth/authorize` flow; otherwise it opens the Seller integration page. A raw Wildberries token is never a tool argument, URL parameter, log field, repository file, or MCP result. Supplier tokens are entered only in the existing browser flow:
 
 `Integration → Add supplier → Personal API token`
 
@@ -52,7 +52,7 @@ For a local MCP client, use the bundled `.mcp.json`. For an HTTP server:
 wildberries-agent-mcp --transport streamable-http --host 0.0.0.0 --port 8080
 ```
 
-Production deployments must put the server behind HTTPS and an OAuth 2.1/PKCE identity bridge. The public URL is deployment-specific and is intentionally not hard-coded in this repository.
+Production deployments must put the server behind HTTPS and an OAuth 2.1/PKCE identity bridge. Set `SELLER_IDENTITY_BRIDGE_URL` to the service-to-service exchange endpoint; without it, production/staging calls fail closed. The public URL is deployment-specific and is intentionally not hard-coded in this repository.
 
 ## Codex and Claude
 

@@ -39,13 +39,14 @@ The plugin does not attempt to replace the Seller dashboard or expose a general-
 - Canonical Seller source: `BearsCLOUD/seller`.
 - Existing onboarding routes: authenticated `GET /wb-oauth/authorize` for an agent-safe browser handoff, or `POST /suppliers/create_supplier` followed by the existing WebSocket check flow. The service UI path is `Integration → Add supplier → Personal API token`.
 - Existing read routes include `/suppliers`, `/statistics/report/combined`, `/financial_report/v2`, `/price_management`, and `/price_management/stocks-report/wb-warehouses`.
-- The MCP server uses the configured Seller gateway URL and forwards the caller's user bearer token; it never accepts a raw Wildberries token as a tool argument.
+- The MCP server uses the configured Seller gateway URL. In production/staging it exchanges the caller's MCP bearer at `SELLER_IDENTITY_BRIDGE_URL` and forwards only the short-lived Seller bearer; in local dev/test it may use a direct bearer or development-only static token. It never accepts a raw Wildberries token as a tool argument.
 - Default transport is Streamable HTTP at `/mcp`. Local stdio is provided for development.
 
 ## Authentication and safety
 
 - Production HTTP deployments must use HTTPS and OAuth 2.1/PKCE or an equivalent short-lived user bearer flow.
-- The implementation keeps the auth boundary explicit: `Authorization` is forwarded only to the configured Seller gateway and is never logged.
+- Production/staging deployments fail closed unless `SELLER_IDENTITY_BRIDGE_URL` is configured. The bridge validates the MCP audience and returns a short-lived Seller bearer; the agent bearer is never forwarded to Seller APIs.
+- The implementation keeps the auth boundary explicit: authorization values are sent only in headers and are never logged.
 - Supplier linking is an out-of-band browser action. A deployment can set `SELLER_CONNECT_URL` to the existing authenticated integration page.
 - Read-only tools are the default. Price/discount mutation is intentionally out of scope for the first release.
 - Responses contain no WB tokens, cookies, or provider-controlled error bodies.
