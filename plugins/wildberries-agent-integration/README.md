@@ -1,7 +1,7 @@
 # Интеграция агента Wildberries
 
-Канонический каталог плагина Codex/Claude: MCP-сервер, пять русскоязычных навыков, локальный
-stdio-конфиг и Streamable HTTP entrypoint.
+Канонический каталог плагина Codex/Claude: MCP-сервер, шесть русскоязычных навыков, локальный
+stdio-конфиг и точка входа Streamable HTTP.
 
 См. [корневое описание](../../README.md), [SPEC](../../SPEC.md),
 [правила безопасности](SECURITY.md), [приватность](PRIVACY.md), [условия](TERMS.md) и

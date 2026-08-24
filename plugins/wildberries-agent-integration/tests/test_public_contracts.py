@@ -114,6 +114,7 @@ def test_public_tool_list_contains_analytics_and_calculators() -> None:
         "wb_analytics_summary",
         "wb_warehouse_stock",
         "wb_unit_economics",
+        "wb_upload_cost_price",
         "wb_replenishment_math",
         "wb_inventory_forecast",
     }
@@ -126,9 +127,28 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
     names = set(annotations)
 
     assert annotations["wb_connect_supplier"].readOnlyHint is False
-    for name in names - {"wb_connect_supplier"}:
+    assert annotations["wb_upload_cost_price"].readOnlyHint is False
+    for name in names - {"wb_connect_supplier", "wb_upload_cost_price"}:
         assert annotations[name].readOnlyHint is True
         assert annotations[name].openWorldHint is False
+
+
+def test_cost_price_upload_requires_explicit_confirmation() -> None:
+    server = build_server(Settings(connect_url="https://seller.example/connect"))
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": False,
+            },
+        )
+    )
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "confirmation_required"
 
 
 def test_credential_fields_are_removed_from_nested_results() -> None:

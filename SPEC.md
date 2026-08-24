@@ -26,7 +26,8 @@ The plugin does not attempt to replace the Seller dashboard or expose a general-
 1. `wb_connect_supplier`: start a browser handoff to the existing secure onboarding flow. The Wildberries token is entered outside the prompt and is never returned to the agent.
 2. `wb_analytics_summary` and `wb_warehouse_stock`: read user-scoped analytics and stock data through the Seller gateway.
 3. `wb_unit_economics`: calculate margin, break-even price, commission, logistics, and scenario deltas from explicit inputs.
-4. `wb_inventory_forecast`: combine recent sales and stock data into a transparent replenishment recommendation by warehouse.
+4. `wb_upload_cost_price`: записать себестоимость одного товара в Seller после явного подтверждения пользователя.
+5. `wb_inventory_forecast`: combine recent sales and stock data into a transparent replenishment recommendation by warehouse.
 
 ## UI overview
 
@@ -55,7 +56,7 @@ The plugin does not attempt to replace the Seller dashboard or expose a general-
 - Production/staging deployments fail closed unless `SELLER_IDENTITY_BRIDGE_URL` is configured. The bridge validates the MCP audience and returns a short-lived Seller bearer; the agent bearer is never forwarded to Seller APIs.
 - The implementation keeps the auth boundary explicit: authorization values are sent only in headers and are never logged.
 - Supplier linking is an out-of-band browser action. A deployment can set `SELLER_CONNECT_URL` to the existing authenticated integration page.
-- Read-only tools are the default. Price/discount mutation is intentionally out of scope for the first release.
+- Read-only tools are the default. The only write in the first release is the confirmation-gated cost-price update; price and discount mutation remain out of scope.
 - Responses contain no WB tokens, cookies, or provider-controlled error bodies.
 
 ## Non-goals for the first release

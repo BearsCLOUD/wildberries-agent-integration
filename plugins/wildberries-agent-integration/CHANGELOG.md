@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Added `wb_upload_cost_price`, a confirmation-gated tool for writing one product cost price to Seller.
+- Added the Russian `cost-price-upload` skill with explicit confirmation guidance.
+
 ## 0.1.3
 
 - Added a dedicated replenishment calculator skill for fast, transparent quantity planning.

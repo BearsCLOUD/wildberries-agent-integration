@@ -15,7 +15,12 @@ from .calculations import inventory_forecast, replenishment_math, unit_economics
 from .client import GatewayError, SellerGatewayClient
 from .config import Settings
 
-_MCP_SCOPES = ["analytics:read", "supplier:read", "supplier:connect"]
+_MCP_SCOPES = [
+    "analytics:read",
+    "supplier:read",
+    "supplier:connect",
+    "cost_price:write",
+]
 
 
 def build_server(settings: Settings | None = None) -> FastMCP:
@@ -33,7 +38,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         else None
     )
     server = FastMCP(
-        name="Wildberries Agent Integration",
+        name="Интеграция агента Wildberries",
         instructions=(
             "Используйте аналитику Wildberries в рамках аккаунта Seller. Не помещайте учётные данные "
             "в запросы и результаты. Для решений сначала используйте калькулятор и прозрачный прогноз пополнения."
@@ -321,6 +326,65 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             )}
         except ValueError as error:
             return {"ok": False, "error": {"code": "invalid_calculator_input", "message": str(error)}}
+
+    @server.tool(
+        name="wb_upload_cost_price",
+        title="Загрузить себестоимость товара",
+        description=(
+            "Записывает себестоимость одного товара в Seller для указанного поставщика. "
+            "Перед изменением обязательно попросите пользователя подтвердить операцию и передайте confirm=true."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_upload_cost_price(
+        supplier_id_wb: int,
+        nm_id: int,
+        cost_price: float,
+        confirm: bool = False,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        if not confirm:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "confirmation_required",
+                    "message": "Подтвердите запись себестоимости и повторите вызов с confirm=true.",
+                },
+            }
+        if supplier_id_wb <= 0 or nm_id <= 0 or cost_price < 0:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_cost_price_input",
+                    "message": "supplier_id_wb и nm_id должны быть положительными, себестоимость — неотрицательной.",
+                },
+            }
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
+        try:
+            data = await gateway.request(
+                authorization=auth,
+                path="/price_management/cost_price",
+                method="PUT",
+                params={"supplier_id_wb": supplier_id_wb},
+                json={"nm_id": nm_id, "cost_price": cost_price},
+                request_id=_request_id(ctx),
+            )
+            return {
+                "ok": True,
+                "supplier_id_wb": supplier_id_wb,
+                "nm_id": nm_id,
+                "cost_price": cost_price,
+                "data": _compact(data),
+            }
+        except GatewayError as error:
+            return _gateway_error(error)
 
     @server.tool(
         name="wb_replenishment_math",

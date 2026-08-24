@@ -22,7 +22,7 @@ user is allowed to use the integration, and returns a short-lived Seller bearer:
   "access_token": "<short-lived-seller-bearer>",
   "token_type": "Bearer",
   "expires_in": 300,
-  "scope": "analytics:read supplier:read supplier:connect",
+  "scope": "analytics:read supplier:read supplier:connect cost_price:write",
   "entitlements": ["wildberries-agent-free"]
 }
 ```
@@ -34,9 +34,9 @@ only the returned bearer to Seller Gateway; the original agent token is never fo
 
 `wildberries-agent-free` is a product entitlement, not a subscription bypass. Seller Gateway must
 derive it from a trusted signed bridge token (or an authenticated server-side introspection result)
-and grant all seven read/calculation tools without a plugin, seat, or per-call charge. The
-entitlement must remain scoped to the authenticated Seller user and must not grant arbitrary API
-proxy access or write permissions.
+and grant all eight published tools without a plugin, seat, or per-call charge. The entitlement
+must remain scoped to the authenticated Seller user and may permit only the explicit cost-price
+write described by `cost_price:write`; it must not grant arbitrary API proxy access or other writes.
 
 Finance and price enrichment may remain unavailable in older Gateway deployments; the plugin
 returns a warning instead of hiding the limitation. Once the entitlement is implemented for those
