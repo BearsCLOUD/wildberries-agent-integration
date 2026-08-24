@@ -4,10 +4,12 @@
 инструментов. Публичный MCP размещается рядом с сервером аналитики. `seller.bears.ru`
 остаётся браузерной точкой регистрации, входа и подключения поставщика, а не MCP host.
 
-Агентский функционал бесплатен: нет лицензионной, seat- или помесячной платы за вызовы
-плагина. Это не отменяет тарифы Wildberries, внешние расходы или entitlement отдельных маршрутов
-Seller. Live-доступность зависит от deployment; репозиторий не фиксирует и не подтверждает
-production hostname.
+Агентский функционал бесплатен: нет лицензионной, seat-, помесячной платы за вызовы или требования
+платного тарифа Seller для опубликованных agent tools. Gateway принимает entitlement
+`wildberries-agent-free` только после серверной проверки opaque agent token, Seller subject и MCP
+resource; обычные неагентские маршруты сохраняют свои тарифные правила. Это не отменяет тарифы
+Wildberries и внешние расходы. Live-доступность зависит от deployment; репозиторий не фиксирует и
+не подтверждает production hostname.
 
 Для проверки домена в OpenAI Platform deployment отдаёт значение
 `OPENAI_APPS_CHALLENGE` точным plain-text ответом на
@@ -19,7 +21,12 @@ production hostname.
 Инструменты с данными поставщика требуют Seller bearer. В production identity bridge обменивает
 bearer агента на короткоживущий Seller bearer. Сырой токен Wildberries не попадает в аргументы,
 ответы или логи MCP. Seller Gateway проверяет authenticated owner, supplier scope и доступ к
-каждой операции.
+каждой операции. Для бесплатных finance/price reads MCP дополнительно передаёт исходный opaque
+agent bearer в `X-Agent-Authorization`; Gateway разрешает его только по своей Redis-записи с
+совпадающими `seller_subject`, `resource` и scope `wildberries-agent-free`.
+
+Каждый инструмент публикует `securitySchemes` с OAuth scope `wildberries-agent-free`; значение
+также зеркалируется в `_meta` для совместимости клиентов ChatGPT.
 
 Hosted HTTP на отсутствующий bearer отвечает `401` с `WWW-Authenticate`. Local stdio и
 незащищённые development-вызовы используют стабильную object form:

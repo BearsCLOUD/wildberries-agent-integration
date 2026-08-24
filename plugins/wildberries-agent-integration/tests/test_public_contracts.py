@@ -526,3 +526,15 @@ def test_oauth_resource_metadata_uses_canonical_issuer_and_free_scope() -> None:
             "https://auth.example.com/"
         ]
         assert response.json()["scopes_supported"] == ["wildberries-agent-free"]
+
+
+def test_every_tool_advertises_the_free_oauth_security_scheme() -> None:
+    tools = asyncio.run(build_server(Settings()).list_tools())
+
+    assert tools
+    for tool in tools:
+        expected = [
+            {"type": "oauth2", "scopes": ["wildberries-agent-free"]}
+        ]
+        assert tool.securitySchemes == expected
+        assert tool.meta["securitySchemes"] == expected

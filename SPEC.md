@@ -16,9 +16,11 @@ Give Wildberries sellers a small set of agent-first actions inside Codex, Claude
 - calculate unit economics and break-even scenarios;
 - forecast how many units to replenish and which warehouse should receive them.
 
-The agent tier is free: no plugin license, seat fee, or per-tool charge. A production identity
-bridge must grant that entitlement for the core read routes. The plugin does not bypass Seller
-subscription checks; optional finance and price enrichment remains entitlement-aware.
+The agent tier is free: no plugin license, seat fee, per-tool charge, or paid Seller plan is required
+for the published agent tools. A production identity bridge grants `wildberries-agent-free` only
+after binding the opaque agent token to the authenticated Seller subject and MCP resource. Reviewed
+finance and price reads accept that server-validated entitlement; ordinary non-agent Seller routes
+keep their existing subscription rules.
 
 ## Why an LLM
 
@@ -96,6 +98,7 @@ not publish or mutate a Wildberries card without a separate explicit user action
 - The MCP server uses the configured Seller gateway URL. In production/staging it exchanges the caller's MCP bearer at `SELLER_IDENTITY_BRIDGE_URL` and forwards only the short-lived Seller bearer; in local dev/test it may use a direct bearer or development-only static token. It never accepts a raw Wildberries token as a tool argument.
 - Default transport is Streamable HTTP at `/mcp`. Local stdio is provided for development.
 - Hosted deployments expose OAuth protected-resource metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` when `MCP_PUBLIC_URL` and `MCP_AUTH_ISSUER` are configured.
+- Every published MCP tool advertises the `wildberries-agent-free` OAuth security scheme in its tool metadata so ChatGPT can start account linking before invoking it.
 - The public MCP is deployed beside the analytics server. `seller.bears.ru` remains the browser
   registration, sign-in, and supplier-connection surface; it is not presented as the analytics MCP host.
 

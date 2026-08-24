@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.12
+
+- Added an explicit `wildberries-agent-free` OAuth security scheme to every MCP tool for ChatGPT account linking.
+- Propagated the opaque agent bearer for Gateway-side subject, resource, and free-entitlement validation on finance and price reads.
+- Bound existing Seller sessions to OAuth authorization state while preserving anonymous registration handoff for new users.
+- Kept Seller as the only credential and analytics backend; the public MCP remains a thin authenticated client.
+
 ## 0.1.11
 
 - Split analytics refresh into an explicit bounded write tool and restored truthful read-only proxy annotations.

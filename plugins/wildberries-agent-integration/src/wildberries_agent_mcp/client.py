@@ -60,6 +60,11 @@ class SellerGatewayClient:
         )
 
         headers = {"Authorization": gateway_authorization}
+        if self.settings.requires_identity_bridge:
+            # Seller Gateway validates this opaque bearer against its own OAuth
+            # record before applying the free read-only entitlement.  It is not
+            # a caller-controlled entitlement claim.
+            headers["X-Agent-Authorization"] = authorization
         if request_id:
             headers["X-Request-ID"] = request_id
 

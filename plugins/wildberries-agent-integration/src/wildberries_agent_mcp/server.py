@@ -28,6 +28,22 @@ from .config import Settings
 from .gateway_proxy import allowed_operations, build_gateway_request
 
 _MCP_SCOPES = ["wildberries-agent-free"]
+_OAUTH_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": _MCP_SCOPES}]
+
+
+class _AgentFastMCP(FastMCP):
+    """Advertise the OAuth policy on every tool for ChatGPT account linking."""
+
+    async def list_tools(self):
+        tools = await super().list_tools()
+        for tool in tools:
+            schemes = [
+                {"type": scheme["type"], "scopes": list(scheme["scopes"])}
+                for scheme in _OAUTH_SECURITY_SCHEMES
+            ]
+            tool.securitySchemes = schemes
+            tool.meta = {**(tool.meta or {}), "securitySchemes": schemes}
+        return tools
 
 
 def build_server(settings: Settings | None = None) -> FastMCP:
@@ -44,7 +60,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         if public_url and auth_issuer
         else None
     )
-    server = FastMCP(
+    server = _AgentFastMCP(
         name="Интеграция агента Wildberries",
         instructions=(
             "Используйте аналитику Wildberries в рамках аккаунта Seller. Не помещайте учётные данные "
