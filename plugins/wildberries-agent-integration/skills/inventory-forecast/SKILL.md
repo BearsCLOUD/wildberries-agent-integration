@@ -15,7 +15,7 @@ Use `wb_inventory_forecast` for the connected supplier. If the tool needs separa
 - current stock, inbound stock, and warehouse split when available;
 - optional service level, seasonality, or minimum shipment size.
 
-Return recommended units by warehouse, coverage horizon, demand rate, stock used in the calculation, and uncertainty notes. A simple baseline is:
+Return recommended units by warehouse, coverage horizon, demand rate, stock used in the calculation, and uncertainty notes. If warehouse stock is unavailable, return regional destinations from `deficit_districts` and label them as a heuristic rather than calling them warehouses. A simple baseline is:
 
 `recommended_units = max(0, demand_rate * coverage_days + safety_stock - available_stock - inbound_stock)`
 

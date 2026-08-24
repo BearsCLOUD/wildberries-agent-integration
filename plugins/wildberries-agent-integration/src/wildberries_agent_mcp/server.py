@@ -5,6 +5,8 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.auth.provider import AccessToken
+from mcp.server.auth.settings import AuthSettings
 from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -13,10 +15,23 @@ from .calculations import inventory_forecast, replenishment_math, unit_economics
 from .client import GatewayError, SellerGatewayClient
 from .config import Settings
 
+_MCP_SCOPES = ["analytics:read", "supplier:read", "supplier:connect"]
+
 
 def build_server(settings: Settings | None = None) -> FastMCP:
     settings = settings or Settings.from_env()
     gateway = SellerGatewayClient(settings)
+    public_url = _secure_base_url(settings.public_url)
+    auth_issuer = _secure_base_url(settings.auth_issuer)
+    auth_settings = (
+        AuthSettings(
+            issuer_url=auth_issuer,
+            resource_server_url=f"{public_url}/mcp",
+            required_scopes=_MCP_SCOPES,
+        )
+        if public_url and auth_issuer
+        else None
+    )
     server = FastMCP(
         name="Wildberries Agent Integration",
         instructions=(
@@ -28,6 +43,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         streamable_http_path="/mcp",
         json_response=True,
         stateless_http=True,
+        auth=auth_settings,
+        token_verifier=_BearerPresenceVerifier() if auth_settings else None,
     )
 
     @server.custom_route("/healthz", methods=["GET"], name="healthz")
@@ -43,19 +60,17 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="oauth_metadata_mcp",
     )
     async def oauth_metadata(_: Request) -> JSONResponse:
-        if not settings.public_url or not settings.auth_issuer:
+        public_url = _secure_base_url(settings.public_url)
+        auth_issuer = _secure_base_url(settings.auth_issuer)
+        if not public_url or not auth_issuer:
             return JSONResponse(
                 {"error": "oauth_metadata_not_configured"}, status_code=503
             )
         return JSONResponse(
             {
-                "resource": f"{settings.public_url}/mcp",
-                "authorization_servers": [settings.auth_issuer],
-                "scopes_supported": [
-                    "analytics:read",
-                    "supplier:read",
-                    "supplier:connect",
-                ],
+                "resource": f"{public_url}/mcp",
+                "authorization_servers": [auth_issuer],
+                "scopes_supported": _MCP_SCOPES,
             }
         )
 
@@ -67,13 +82,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "Wildberries personal token outside the agent prompt; this tool never accepts or returns it."
         ),
         annotations=ToolAnnotations(
-            readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
         ),
     )
     async def wb_connect_supplier(
         supplier_id_wb: int | None = None, ctx: Context | None = None
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
+        if auth is None and settings.requires_identity_bridge:
+            return _auth_error()
         if auth is not None:
             try:
                 oauth = await gateway.request(
@@ -83,24 +103,46 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 )
                 if isinstance(oauth, dict):
                     authorization_url = oauth.get("authorization_url") or oauth.get("url")
-                    if isinstance(authorization_url, str) and authorization_url.startswith("https://"):
+                    authorization_url = _safe_handoff_url(
+                        authorization_url, require_https=True
+                    )
+                    if authorization_url:
                         return {
                             "ok": True,
                             "url": authorization_url,
                             "flow": "Seller WB OAuth",
                             "security": "Complete the provider consent in the browser; credentials stay outside the agent conversation.",
                         }
-            except GatewayError:
+            except GatewayError as error:
                 # A deployment may not expose WB OAuth yet; the explicit browser handoff remains safe.
-                pass
+                if _is_identity_boundary_error(error):
+                    return _gateway_error(error)
         if not settings.connect_url:
             return {
                 "ok": False,
                 "error": {"code": "connect_url_not_configured", "message": "Seller onboarding URL is not configured."},
             }
+        connect_url = _safe_handoff_url(
+            _with_query(
+                settings.connect_url,
+                {
+                    "source": "wildberries-agent-integration",
+                    **({"supplier_id_wb": supplier_id_wb} if supplier_id_wb else {}),
+                },
+            ),
+            require_https=settings.requires_identity_bridge,
+        )
+        if not connect_url:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "unsafe_connect_url",
+                    "message": "Seller onboarding URL must be an HTTPS URL without credential-like query parameters.",
+                },
+            }
         return {
             "ok": True,
-            "url": _with_query(settings.connect_url, {"source": "wildberries-agent-integration", **({"supplier_id_wb": supplier_id_wb} if supplier_id_wb else {})}),
+            "url": connect_url,
             "flow": "Integration → Add supplier → Personal API token",
             "security": "Enter the token in the Seller service, not in chat. The agent receives only connection status.",
         }
@@ -109,7 +151,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_list_suppliers",
         title="List connected suppliers",
         description="List suppliers available to the authenticated Seller user without credentials or token values.",
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
     )
     async def wb_list_suppliers(ctx: Context) -> dict[str, Any]:
         return await _gateway_result(gateway, settings, ctx, path="/suppliers", operation="list_suppliers")
@@ -118,13 +165,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_analytics_summary",
         title="Wildberries analytics summary",
         description="Read sales/orders and optional finance/price summaries for one supplier and a bounded date range.",
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
     )
     async def wb_analytics_summary(
         supplier_id_wb: int,
         date_from: str,
         date_to: str,
-        include_finance: bool = True,
+        include_finance: bool = False,
         include_price_table: bool = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
@@ -148,22 +200,36 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "period": period,
                 "sales_orders": _compact(combined),
             }
+            warnings: list[str] = []
             if include_finance:
-                finance = await gateway.request(
-                    authorization=auth,
-                    path="/financial_report/dashboard/v2",
-                    params={"supplier_id_wb": supplier_id_wb, **period},
-                    request_id=_request_id(ctx),
-                )
-                result["finance"] = _compact(finance)
+                try:
+                    finance = await gateway.request(
+                        authorization=auth,
+                        path="/financial_report/dashboard/v2",
+                        params={"supplier_id_wb": supplier_id_wb, **period},
+                        request_id=_request_id(ctx),
+                    )
+                    result["finance"] = _compact(finance)
+                except GatewayError as error:
+                    result["finance"] = {"ok": False, "error": _gateway_error(error)["error"]}
+                    warnings.append("finance_unavailable_for_current_entitlement")
             if include_price_table:
-                prices = await gateway.request(
-                    authorization=auth,
-                    path="/price_management",
-                    params={"supplier_id_wb": supplier_id_wb},
-                    request_id=_request_id(ctx),
-                )
-                result["price_table"] = _compact(prices)
+                try:
+                    prices = await gateway.request(
+                        authorization=auth,
+                        path="/price_management",
+                        params={"supplier_id_wb": supplier_id_wb},
+                        request_id=_request_id(ctx),
+                    )
+                    result["price_table"] = _compact(prices)
+                except GatewayError as error:
+                    result["price_table"] = {
+                        "ok": False,
+                        "error": _gateway_error(error)["error"],
+                    }
+                    warnings.append("price_table_unavailable_for_current_entitlement")
+            if warnings:
+                result["warnings"] = warnings
             return result
         except GatewayError as error:
             return _gateway_error(error)
@@ -172,7 +238,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_warehouse_stock",
         title="Wildberries warehouse stock",
         description="Read current WB warehouse stock for up to 1,000 nm IDs through the Seller gateway.",
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
     )
     async def wb_warehouse_stock(
         supplier_id_wb: int,
@@ -197,13 +268,31 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             )
             return {"ok": True, "supplier_id_wb": supplier_id_wb, "data": _compact(data)}
         except GatewayError as error:
+            if error.code == "not_found":
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "warehouse_stock_unavailable",
+                        "status": error.status,
+                        "message": "The configured Seller gateway does not expose warehouse stock yet.",
+                    },
+                    "fallback": {
+                        "tool": "wb_inventory_forecast",
+                        "note": "The forecast can still use regional deficit demand and will label the allocation as a heuristic.",
+                    },
+                }
             return _gateway_error(error)
 
     @server.tool(
         name="wb_unit_economics",
         title="Wildberries unit economics calculator",
         description="Calculate net price, commission, tax, costs, profit, margin, and break-even price from explicit inputs.",
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
     )
     async def wb_unit_economics(
         price: float,
@@ -237,7 +326,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_replenishment_math",
         title="Replenishment calculator",
         description="Calculate a deterministic replenishment quantity from daily sales, stock, target days, and safety days.",
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
     )
     async def wb_replenishment_math(
         daily_sales: float,
@@ -264,7 +358,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "Use Seller deficit and warehouse stock data to estimate how many units to replenish and where. "
             "Return assumptions and warnings; this is a recommendation, not a sales guarantee."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
     )
     async def wb_inventory_forecast(
         supplier_id_wb: int,
@@ -311,7 +410,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     stock_rows = stocks.get("data", []) if isinstance(stocks, dict) else []
                     stock_status = "ok"
                 except GatewayError as error:
-                    stock_status = error.code
+                    stock_status = (
+                        "warehouse_stock_unavailable"
+                        if error.code == "not_found"
+                        else error.code
+                    )
             forecast = inventory_forecast(
                 deficit_rows=deficit_rows[:100],
                 stock_rows=stock_rows,
@@ -375,6 +478,10 @@ def _gateway_error(error: GatewayError) -> dict[str, Any]:
     return {"ok": False, "error": {"code": error.code, "status": error.status}}
 
 
+def _is_identity_boundary_error(error: GatewayError) -> bool:
+    return error.code.startswith("identity_bridge") or error.code == "gateway_https_required"
+
+
 def _request_id(ctx: Context | None) -> str | None:
     if ctx is None:
         return None
@@ -404,6 +511,54 @@ def _with_query(url: str, values: dict[str, Any]) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
+def _safe_handoff_url(url: Any, *, require_https: bool) -> str | None:
+    if not isinstance(url, str) or not url.strip():
+        return None
+    try:
+        parts = urlsplit(url.strip())
+        username = parts.username
+        password = parts.password
+        query_keys = [key.lower() for key, _ in parse_qsl(parts.query, keep_blank_values=True)]
+    except ValueError:
+        return None
+    if parts.scheme not in ({"https"} if require_https else {"http", "https"}):
+        return None
+    if not parts.netloc or username or password or parts.fragment:
+        return None
+    if any(
+        marker in key
+        for key in query_keys
+        for marker in ("token", "secret", "password", "authorization", "cookie", "api_key", "apikey")
+    ):
+        return None
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, parts.fragment))
+
+
+def _secure_base_url(url: Any) -> str | None:
+    safe = _safe_handoff_url(url, require_https=True)
+    if not safe:
+        return None
+    parts = urlsplit(safe)
+    if parts.query or parts.fragment:
+        return None
+    return safe.rstrip("/")
+
+
+class _BearerPresenceVerifier:
+    """Leave token authorization to the identity bridge while enabling MCP's 401 challenge."""
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        if not isinstance(token, str) or not token.strip() or any(
+            character.isspace() for character in token
+        ):
+            return None
+        return AccessToken(
+            token=token,
+            client_id="seller-identity-bridge",
+            scopes=_MCP_SCOPES,
+        )
+
+
 def _as_int_value(value: Any) -> int | None:
     try:
         return int(value) if value is not None else None
@@ -418,7 +573,19 @@ def _compact(value: Any, *, depth: int = 0) -> Any:
         result: dict[str, Any] = {}
         for key, item in list(value.items())[:80]:
             key_text = str(key)
-            if any(part in key_text.lower() for part in ("token", "authorization", "cookie", "secret", "password")):
+            if any(
+                part in key_text.lower()
+                for part in (
+                    "token",
+                    "authorization",
+                    "cookie",
+                    "secret",
+                    "password",
+                    "api_key",
+                    "apikey",
+                    "credential",
+                )
+            ):
                 continue
             result[key_text] = _compact(item, depth=depth + 1)
         return result

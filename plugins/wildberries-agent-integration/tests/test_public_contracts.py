@@ -11,7 +11,12 @@ from wildberries_agent_mcp.calculations import (
 )
 from wildberries_agent_mcp.client import GatewayError, SellerGatewayClient
 from wildberries_agent_mcp.config import Settings
-from wildberries_agent_mcp.server import _compact, build_server
+from wildberries_agent_mcp.server import (
+    _compact,
+    _safe_handoff_url,
+    _secure_base_url,
+    build_server,
+)
 
 
 def test_unit_economics_returns_profit_margin_and_target_price() -> None:
@@ -71,6 +76,33 @@ def test_inventory_forecast_allocates_replenishment_to_warehouses() -> None:
     assert item["destinations"][1]["quantity"] > item["destinations"][0]["quantity"]
 
 
+def test_inventory_forecast_uses_regional_demand_when_warehouse_stock_is_missing() -> None:
+    result = inventory_forecast(
+        deficit_rows=[
+            {
+                "nm_id": 101,
+                "amount": 30,
+                "qty": 0,
+                "deficit": 20,
+                "deficit_districts": [
+                    {"district_name": "Central", "amount": 20, "deficit": 10, "qty": 0},
+                    {"district_name": "Volga", "amount": 10, "deficit": 10, "qty": 0},
+                ],
+            }
+        ],
+        stock_rows=[],
+        horizon_days=30,
+        safety_days=7,
+    )
+
+    item = result["items"][0]
+    assert item["destinations"]
+    assert {row["destination_type"] for row in item["destinations"]} == {"district"}
+    assert {row["warehouse"] for row in item["destinations"]} == {"Central", "Volga"}
+    assert sum(row["quantity"] for row in item["destinations"]) == item["recommended_qty"]
+    assert "regional demand" in item["warnings"][0]
+
+
 def test_public_tool_list_contains_analytics_and_calculators() -> None:
     server = build_server(Settings(connect_url="https://seller.example/connect"))
     tools = asyncio.run(server.list_tools())
@@ -85,6 +117,18 @@ def test_public_tool_list_contains_analytics_and_calculators() -> None:
         "wb_replenishment_math",
         "wb_inventory_forecast",
     }
+
+
+def test_public_tool_annotations_keep_private_reads_read_only() -> None:
+    server = build_server(Settings(connect_url="https://seller.example/connect"))
+    tools = asyncio.run(server.list_tools())
+    annotations = {tool.name: tool.annotations for tool in tools}
+    names = set(annotations)
+
+    assert annotations["wb_connect_supplier"].readOnlyHint is False
+    for name in names - {"wb_connect_supplier"}:
+        assert annotations[name].readOnlyHint is True
+        assert annotations[name].openWorldHint is False
 
 
 def test_credential_fields_are_removed_from_nested_results() -> None:
@@ -118,3 +162,12 @@ def test_production_requires_identity_bridge_before_gateway_call() -> None:
                 path="/suppliers",
             )
         )
+
+
+def test_handoff_urls_reject_credentials_and_non_https_production_urls() -> None:
+    assert _safe_handoff_url("https://seller.example/integration?token=secret", require_https=True) is None
+    assert _safe_handoff_url("https://seller.example/integration#access-token", require_https=True) is None
+    assert _safe_handoff_url("http://seller.example/integration", require_https=True) is None
+    assert _safe_handoff_url("http://127.0.0.1:8000/integration", require_https=False)
+    assert _secure_base_url("https://agents.example.com") == "https://agents.example.com"
+    assert _secure_base_url("https://agents.example.com?token=secret") is None

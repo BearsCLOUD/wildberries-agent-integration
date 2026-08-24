@@ -119,11 +119,12 @@ def inventory_forecast(
         daily_sales = sales_amount / 30 if sales_amount > 0 else 0.0
         target_stock = ceil(daily_sales * (horizon_days + safety_days))
         recommended = max(deficit, target_stock - current_stock, 0)
+        district_rows = row.get("deficit_districts") or []
         warehouses = _allocate(
             quantity=recommended,
             rows=stock_by_nm.get(nm_id, []),
+            district_rows=district_rows,
         )
-        district_rows = row.get("deficit_districts") or []
         items.append(
             {
                 "nm_id": nm_id,
@@ -169,7 +170,12 @@ def replenishment_math(
     }
 
 
-def _allocate(*, quantity: int, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _allocate(
+    *,
+    quantity: int,
+    rows: list[dict[str, Any]],
+    district_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     if quantity <= 0:
         return []
     grouped: list[tuple[str, int]] = []
@@ -177,21 +183,70 @@ def _allocate(*, quantity: int, rows: list[dict[str, Any]]) -> list[dict[str, An
         name = str(row.get("warehouseName", row.get("warehouse_name", "Unknown warehouse")))
         qty = _as_int(row.get("quantity", row.get("qty"))) or 0
         grouped.append((name, max(0, qty)))
-    if not grouped:
-        return [{"warehouse": "unassigned", "quantity": quantity, "reason": "warehouse stock data unavailable"}]
+    if grouped:
+        weights = [1 / (qty + 1) for _, qty in grouped]
+        allocated = _weighted_units(quantity, weights)
+        return [
+            {
+                "warehouse": name,
+                "destination_type": "warehouse",
+                "current_stock": qty,
+                "quantity": units,
+                "reason": "balanced toward lower current stock",
+            }
+            for (name, qty), units in zip(grouped, allocated, strict=True)
+            if units > 0
+        ]
 
-    weights = [1 / (qty + 1) for _, qty in grouped]
+    districts: list[tuple[str, int | None, int]] = []
+    for row in district_rows or []:
+        if not isinstance(row, dict):
+            continue
+        name = row.get("district_name", row.get("district_short_name"))
+        if not name:
+            continue
+        demand = max(
+            _as_int(row.get("amount")) or 0,
+            _as_int(row.get("deficit")) or 0,
+        )
+        districts.append((str(name), _as_int(row.get("qty")), demand))
+    if districts:
+        demand_total = sum(demand for _, _, demand in districts)
+        weights = [demand if demand_total else 1 for _, _, demand in districts]
+        allocated = _weighted_units(quantity, weights)
+        return [
+            {
+                "warehouse": name,
+                "destination_type": "district",
+                "current_stock": current_stock,
+                "quantity": units,
+                "reason": "allocated by regional demand; warehouse stock unavailable",
+            }
+            for (name, current_stock, _), units in zip(districts, allocated, strict=True)
+            if units > 0
+        ]
+    return [
+        {
+            "warehouse": "unassigned",
+            "destination_type": "unknown",
+            "quantity": quantity,
+            "reason": "warehouse and regional demand data unavailable",
+        }
+    ]
+
+
+def _weighted_units(quantity: int, weights: list[int | float]) -> list[int]:
     total_weight = sum(weights)
+    if total_weight <= 0:
+        return [0 for _ in weights]
     raw = [quantity * weight / total_weight for weight in weights]
     allocated = [floor(value) for value in raw]
     remainder = quantity - sum(allocated)
-    for index in sorted(range(len(raw)), key=lambda i: raw[i] - allocated[i], reverse=True)[:remainder]:
+    for index in sorted(
+        range(len(raw)), key=lambda i: raw[i] - allocated[i], reverse=True
+    )[:remainder]:
         allocated[index] += 1
-    return [
-        {"warehouse": name, "current_stock": qty, "quantity": units, "reason": "balanced toward lower current stock"}
-        for (name, qty), units in zip(grouped, allocated, strict=True)
-        if units > 0
-    ]
+    return allocated
 
 
 def _compact_districts(rows: list[Any]) -> list[dict[str, Any]]:
@@ -212,7 +267,11 @@ def _compact_districts(rows: list[Any]) -> list[dict[str, Any]]:
 
 def _warnings(*, recommended: int, has_warehouse_data: bool, has_district_data: bool) -> list[str]:
     warnings = []
-    if not has_warehouse_data and recommended > 0:
+    if not has_warehouse_data and recommended > 0 and has_district_data:
+        warnings.append(
+            "Warehouse stock data is unavailable; destinations use regional demand as a heuristic."
+        )
+    elif not has_warehouse_data and recommended > 0:
         warnings.append("Warehouse stock data is unavailable; destination is unassigned.")
     if not has_district_data:
         warnings.append("Regional demand was unavailable; use the allocation as a coverage heuristic.")

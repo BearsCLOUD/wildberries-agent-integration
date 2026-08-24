@@ -11,7 +11,9 @@ Give Wildberries sellers a small set of agent-first actions inside Codex, Claude
 - calculate unit economics and break-even scenarios;
 - forecast how many units to replenish and which warehouse should receive them.
 
-The agent tier is free. Wildberries fees, Seller service limits, and infrastructure costs are separate from the plugin.
+The agent tier is free: no plugin license, seat fee, or per-tool charge. A production identity
+bridge must grant that entitlement for the core read routes. The plugin does not bypass Seller
+subscription checks; optional finance and price enrichment remains entitlement-aware.
 
 ## Why an LLM
 
@@ -38,7 +40,11 @@ The plugin does not attempt to replace the Seller dashboard or expose a general-
 
 - Canonical Seller source: `BearsCLOUD/seller`.
 - Existing onboarding routes: authenticated `GET /wb-oauth/authorize` for an agent-safe browser handoff, or `POST /suppliers/create_supplier` followed by the existing WebSocket check flow. The service UI path is `Integration → Add supplier → Personal API token`.
-- Existing read routes include `/suppliers`, `/statistics/report/combined`, `/financial_report/v2`, `/price_management`, and `/price_management/stocks-report/wb-warehouses`.
+- Existing read routes include `/suppliers`, `/statistics/report/combined`, and `/statistics/orders`.
+  Finance (`/financial_report/dashboard/v2`) and price (`/price_management`) enrichment is optional
+  and may be subscription-gated. Warehouse stock is an optional gateway adapter route; when it is
+  unavailable, the forecast uses `deficit_districts` and labels the destination as a regional
+  heuristic instead of inventing warehouse data.
 - The MCP server uses the configured Seller gateway URL. In production/staging it exchanges the caller's MCP bearer at `SELLER_IDENTITY_BRIDGE_URL` and forwards only the short-lived Seller bearer; in local dev/test it may use a direct bearer or development-only static token. It never accepts a raw Wildberries token as a tool argument.
 - Default transport is Streamable HTTP at `/mcp`. Local stdio is provided for development.
 - Hosted deployments expose OAuth protected-resource metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` when `MCP_PUBLIC_URL` and `MCP_AUTH_ISSUER` are configured.

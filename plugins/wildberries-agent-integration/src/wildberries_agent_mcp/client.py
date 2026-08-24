@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -37,6 +38,15 @@ class SellerGatewayClient:
             raise GatewayError("gateway_not_configured")
         if not authorization.startswith("Bearer "):
             raise GatewayError("auth_required", status=401)
+        if not _safe_service_url(
+            self.settings.gateway_url,
+            require_https=self.settings.requires_identity_bridge,
+        ):
+            raise GatewayError(
+                "gateway_https_required"
+                if self.settings.requires_identity_bridge
+                else "gateway_url_invalid"
+            )
 
         gateway_authorization = await self._resolve_authorization(
             authorization, request_id
@@ -79,6 +89,8 @@ class SellerGatewayClient:
             return authorization
         if not self.settings.identity_bridge_url:
             raise GatewayError("identity_bridge_not_configured")
+        if not _safe_service_url(self.settings.identity_bridge_url, require_https=True):
+            raise GatewayError("identity_bridge_https_required")
 
         headers = {
             "Authorization": authorization,
@@ -106,7 +118,12 @@ class SellerGatewayClient:
         token = payload.get("seller_access_token") or payload.get("access_token")
         if not isinstance(token, str) or not token.strip():
             raise GatewayError("identity_bridge_missing_token")
-        return token if token.startswith("Bearer ") else f"Bearer {token}"
+        token = token.strip()
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+        if not token or any(character.isspace() for character in token):
+            raise GatewayError("identity_bridge_invalid_token")
+        return f"Bearer {token}"
 
 
 def _status_code(status: int) -> str:
@@ -120,3 +137,21 @@ def _status_code(status: int) -> str:
         422: "validation_error",
         429: "rate_limited",
     }.get(status, "upstream_error")
+
+
+def _safe_service_url(url: str, *, require_https: bool) -> bool:
+    try:
+        parts = urlsplit(url)
+        username = parts.username
+        password = parts.password
+    except ValueError:
+        return False
+    schemes = {"https"} if require_https else {"http", "https"}
+    return (
+        parts.scheme in schemes
+        and bool(parts.netloc)
+        and not username
+        and not password
+        and not parts.query
+        and not parts.fragment
+    )

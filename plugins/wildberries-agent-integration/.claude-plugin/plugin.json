@@ -1,12 +1,12 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Free Wildberries analytics, unit-economics, and replenishment tools for Claude and other MCP-compatible agents.",
   "author": {
     "name": "BearsCLOUD",
     "url": "https://github.com/BearsCLOUD"
   },
-  "homepage": "https://bears.ru",
+  "homepage": "https://github.com/BearsCLOUD/wildberries-agent-integration",
   "repository": "https://github.com/BearsCLOUD/wildberries-agent-integration",
   "license": "MIT"
 }

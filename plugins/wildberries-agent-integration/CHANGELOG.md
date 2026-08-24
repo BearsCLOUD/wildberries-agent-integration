@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Added fail-closed HTTPS and handoff URL validation.
+- Made optional finance/price enrichment non-blocking for the free core analytics flow.
+- Added regional-demand allocation when warehouse stock is not exposed by the gateway.
+- Corrected MCP tool annotations and protected-resource metadata validation.
+
 ## 0.1.0
 
 - Added Codex and Claude plugin manifests.

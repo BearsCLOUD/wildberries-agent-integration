@@ -24,11 +24,16 @@ The result includes `net_price`, `profit`, `margin_percent`, `break_even_price`,
 
 ## Forecast
 
-`wb_inventory_forecast` accepts a supplier ID and optional `nm_ids`, then reads the Seller deficit and warehouse stock routes. The response includes `recommended_qty`, `destinations`, `district_demand`, `warehouse_stock_status`, and warnings when warehouse-level demand is unavailable.
+`wb_inventory_forecast` accepts a supplier ID and optional `nm_ids`, then reads the Seller deficit and
+the optional warehouse stock route. The response includes `recommended_qty`, `destinations`,
+`district_demand`, `warehouse_stock_status`, and warnings. When warehouse stock is unavailable,
+`destinations[].destination_type` is `district` and the allocation is explicitly a regional-demand
+heuristic.
 
 ## Error shape
 
-Tools return a small stable object:
+Tools return a small stable object. Hosted HTTP deployments challenge a missing bearer with `401`
+and `WWW-Authenticate`; local stdio and unprotected development calls use the object form:
 
 ```json
 {
