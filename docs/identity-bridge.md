@@ -44,10 +44,12 @@ read routes, no plugin change is required.
 
 ## Supplier onboarding
 
-The bridge and Seller service keep the existing ownership flow. `wb_connect_supplier` opens
-`/wb-oauth/authorize` when available, otherwise the authenticated Seller integration page. The user
-enters the Wildberries personal token there. The MCP request, bridge response, logs, and tool result
-must never contain that token.
+The bridge and Seller service keep the existing ownership flow. `wb_connect_supplier` can open
+`https://seller.bears.ru/authentication/registration` without an existing MCP bearer for a new
+user, and opens `/wb-oauth/authorize` or the Seller integration page for an authenticated user.
+The user enters the Wildberries personal token there. The MCP request, bridge response, logs, and
+tool result must never contain that token. SMS/email and legal consent that Seller requires remain
+inside the browser flow; the agent does not add a second confirmation screen.
 
 ## Failure behavior
 

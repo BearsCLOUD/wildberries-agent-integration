@@ -69,7 +69,9 @@ wildberries-agent-mcp --transport streamable-http --host 0.0.0.0 --port 8080
 
 Production требует HTTPS и OAuth 2.1/PKCE identity bridge. Задайте
 `SELLER_IDENTITY_BRIDGE_URL`, `MCP_PUBLIC_URL` и `MCP_AUTH_ISSUER`; без bridge production/staging
-запросы завершаются fail-closed. Публичный hostname намеренно не зашит в репозиторий.
+запросы завершаются fail-closed. `MCP_PUBLIC_URL` — адрес публичного MCP рядом с сервером
+аналитики, а `seller.bears.ru` используется только для регистрации/входа и добавления поставщика.
+Публичный адрес аналитического MCP намеренно не зашит в репозиторий.
 
 Бесплатная агентская поверхность включает статистику, список поставщиков, калькуляторы и прогноз
 дефицита. Финансовое и ценовое обогащение возвращает понятное предупреждение, если entitlement

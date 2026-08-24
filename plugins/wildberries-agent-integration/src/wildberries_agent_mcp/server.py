@@ -98,8 +98,6 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         supplier_id_wb: int | None = None, ctx: Context | None = None
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
-        if auth is None and settings.requires_identity_bridge:
-            return _auth_error()
         if auth is not None:
             try:
                 oauth = await gateway.request(
@@ -149,8 +147,13 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         return {
             "ok": True,
             "url": connect_url,
-            "flow": "Интеграция Seller → Добавить поставщика → Персональный API-токен",
-            "security": "Введите токен в сервисе Seller, а не в чате. Агент получает только статус подключения.",
+            "flow": (
+                "Регистрация пользователя Seller → Интеграция → Добавить поставщика"
+                if _is_registration_url(connect_url)
+                else "Интеграция Seller → Добавить поставщика → Персональный API-токен"
+            ),
+            "security": "Завершите регистрацию или вход и введите токен в Seller, а не в чате. Агент получает только статус подключения.",
+            "agent_next_step": "После завершения браузерного сценария повторите запрос статуса в агенте.",
         }
 
     @server.tool(
@@ -630,6 +633,11 @@ def _safe_handoff_url(url: Any, *, require_https: bool) -> str | None:
     ):
         return None
     return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, parts.fragment))
+
+
+def _is_registration_url(url: str) -> bool:
+    parts = urlsplit(url)
+    return parts.netloc.lower() == "seller.bears.ru" and parts.path.rstrip("/") == "/authentication/registration"
 
 
 def _secure_base_url(url: Any) -> str | None:

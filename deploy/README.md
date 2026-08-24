@@ -1,7 +1,8 @@
 # Hosted MCP handoff
 
-This compose file runs the Streamable HTTP server. Put it behind an HTTPS reverse proxy and an
-OAuth 2.1/PKCE identity bridge before giving the URL to ChatGPT or Claude.
+This compose file runs the Streamable HTTP MCP server. Deploy it beside the analytics service,
+put it behind an HTTPS reverse proxy and an OAuth 2.1/PKCE identity bridge before giving the URL
+to ChatGPT or Claude. `seller.bears.ru` is used only for browser registration and supplier linking.
 
 Required production variables:
 

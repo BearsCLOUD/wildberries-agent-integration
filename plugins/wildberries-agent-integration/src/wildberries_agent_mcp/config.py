@@ -38,7 +38,10 @@ class Settings:
             identity_bridge_url=getenv("SELLER_IDENTITY_BRIDGE_URL", "").rstrip("/"),
             public_url=getenv("MCP_PUBLIC_URL", "").rstrip("/"),
             auth_issuer=getenv("MCP_AUTH_ISSUER", "").rstrip("/"),
-            connect_url=getenv("SELLER_CONNECT_URL", "").strip(),
+            connect_url=getenv(
+                "SELLER_CONNECT_URL",
+                "https://seller.bears.ru/authentication/registration",
+            ).strip(),
             timeout_seconds=timeout_seconds,
             environment=getenv("APP_ENV", "production").lower().strip(),
             static_access_token=getenv("SELLER_ACCESS_TOKEN", ""),

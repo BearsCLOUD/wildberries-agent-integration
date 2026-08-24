@@ -133,6 +133,25 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
         assert annotations[name].openWorldHint is False
 
 
+def test_supplier_handoff_supports_new_seller_registration_without_mcp_bearer() -> None:
+    server = build_server(
+        Settings(
+            environment="production",
+            connect_url="https://seller.bears.ru/authentication/registration",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool("wb_connect_supplier", {"supplier_id_wb": 31460})
+    )
+
+    assert result["ok"] is True
+    assert result["url"] == (
+        "https://seller.bears.ru/authentication/registration?"
+        "source=wildberries-agent-integration&supplier_id_wb=31460"
+    )
+    assert result["flow"].startswith("Регистрация пользователя Seller")
+
+
 def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
     calls = []
 

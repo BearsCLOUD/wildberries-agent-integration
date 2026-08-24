@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7
+
+- Made `wb_connect_supplier` open new-user registration at `seller.bears.ru` without an MCP bearer or extra confirmation.
+- Documented the analytics server as the public MCP host; Seller remains the browser onboarding service.
+
 ## 0.1.6
 
 - Made cost-price writes return a canonical status only after Seller echoes the requested `nm_id` and amount.
