@@ -20,7 +20,8 @@ reviewer account still belong to deployment and publisher operations.
 
 - Validate the same directory with `claude plugin validate plugins/wildberries-agent-integration`.
 - For Claude Connector, publish the HTTPS Streamable HTTP MCP endpoint.
-- For Claude Desktop/Codex CLI, the bundled stdio config is suitable for local development.
+- For Claude Desktop/Claude Code, use the bundled `claude/mcp.json`, which resolves paths through
+  `${CLAUDE_PLUGIN_ROOT}`. Codex uses the root `.mcp.json` with working-directory-relative paths.
 
 ## Launch message
 

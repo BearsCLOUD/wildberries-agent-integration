@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Added a Claude-specific MCP config using `${CLAUDE_PLUGIN_ROOT}` while keeping Codex's local config separate.
+- Published the identity-bridge and free-entitlement contract for hosted deployments.
+
 ## 0.1.1
 
 - Added fail-closed HTTPS and handoff URL validation.

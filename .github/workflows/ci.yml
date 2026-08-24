@@ -32,6 +32,6 @@ jobs:
           for path in (Path('.codex-plugin/plugin.json'), Path('.claude-plugin/plugin.json')):
               data = json.loads(path.read_text())
               assert data['name'] == 'wildberries-agent-integration'
-              assert data['version'].startswith('0.1.1')
+              assert data['version'].startswith('0.1.2')
           json.loads(Path('.mcp.json').read_text())
           PY

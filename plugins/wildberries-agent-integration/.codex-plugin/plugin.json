@@ -1,6 +1,6 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.1+codex.20260824170113",
+  "version": "0.1.2+codex.20260824171435",
   "description": "Free Wildberries analytics, unit-economics, and replenishment tools for Codex and MCP-compatible agents.",
   "author": {
     "name": "BearsCLOUD",
