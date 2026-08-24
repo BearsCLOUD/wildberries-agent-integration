@@ -14,8 +14,10 @@ X-Identity-Audience: seller-gateway
 X-Request-ID: <opaque-request-id>
 ```
 
-The bridge validates the agent token, maps its subject to the existing Seller user, checks that the
-user is allowed to use the integration, and returns a short-lived Seller bearer:
+The bridge validates the agent token, maps its subject to the existing Seller user, and returns a
+short-lived Seller bearer. The agent surface is free for every connected Seller user: the bridge
+must not require a paid plan, seat, or per-call charge. Seller still enforces identity and supplier
+ownership before returning data or accepting a write:
 
 ```json
 {
@@ -30,13 +32,13 @@ user is allowed to use the integration, and returns a short-lived Seller bearer:
 The plugin also accepts `seller_access_token` for compatibility with an existing bridge. It sends
 only the returned bearer to Seller Gateway; the original agent token is never forwarded downstream.
 
-## Free entitlement
+## Бесплатный доступ
 
-`wildberries-agent-free` is a product entitlement, not a subscription bypass. Seller Gateway must
-derive it from a trusted signed bridge token (or an authenticated server-side introspection result)
-and grant all eight published tools without a plugin, seat, or per-call charge. The entitlement
-must remain scoped to the authenticated Seller user and may permit only the explicit cost-price
-write described by `cost_price:write`; it must not grant arbitrary API proxy access or other writes.
+`wildberries-agent-free` — техническая отметка бесплатного агентского доступа, а не платная
+подписка. Seller Gateway должен получать её из доверенного подписанного bridge-токена (или
+проверенного серверного introspection) и не требовать тариф, seat или оплату за вызов. Отметка
+остаётся привязанной к текущему пользователю и поставщику и разрешает только восемь опубликованных
+инструментов; запись ограничена описанным `cost_price:write` и не превращается в произвольный API-прокси.
 
 Finance and price enrichment may remain unavailable in older Gateway deployments; the plugin
 returns a warning instead of hiding the limitation. Once the entitlement is implemented for those

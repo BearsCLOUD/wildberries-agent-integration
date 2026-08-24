@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Removed the extra confirmation round-trip from `wb_upload_cost_price`; explicit tool arguments now execute immediately within Seller ownership.
+
 ## 0.1.7
 
 - Made `wb_connect_supplier` open new-user registration at `seller.bears.ru` without an MCP bearer or extra confirmation.

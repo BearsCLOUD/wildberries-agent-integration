@@ -152,12 +152,12 @@ def test_supplier_handoff_supports_new_seller_registration_without_mcp_bearer() 
     assert result["flow"].startswith("Регистрация пользователя Seller")
 
 
-def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
+def test_cost_price_upload_rejects_invalid_input_before_gateway(monkeypatch) -> None:
     calls = []
 
     async def unexpected_request(*args, **kwargs):
         calls.append((args, kwargs))
-        raise AssertionError("confirmation must stop before the gateway")
+        raise AssertionError("invalid input must stop before the gateway")
 
     monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
     server = build_server(Settings(connect_url="https://seller.example/connect"))
@@ -167,18 +167,17 @@ def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
             {
                 "supplier_id_wb": 31460,
                 "nm_id": 123456789,
-                "cost_price": 320.0,
-                "confirm": False,
+                "cost_price": -1.0,
             },
         )
     )
 
     assert result["ok"] is False
-    assert result["error"]["code"] == "confirmation_required"
+    assert result["error"]["code"] == "invalid_cost_price_input"
     assert calls == []
 
 
-def test_cost_price_upload_requires_bearer_after_confirmation(monkeypatch) -> None:
+def test_cost_price_upload_requires_bearer_for_explicit_input(monkeypatch) -> None:
     calls = []
 
     async def unexpected_request(*args, **kwargs):
@@ -196,7 +195,6 @@ def test_cost_price_upload_requires_bearer_after_confirmation(monkeypatch) -> No
                 "supplier_id_wb": 31460,
                 "nm_id": 123456789,
                 "cost_price": 320.0,
-                "confirm": True,
             },
         )
     )
@@ -233,7 +231,6 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monke
                 "supplier_id_wb": 31460,
                 "nm_id": 123456789,
                 "cost_price": 320.0,
-                "confirm": True,
             },
         )
     )
@@ -256,7 +253,6 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monke
         "supplier_id_wb": 31460,
         "nm_id": 123456789,
         "cost_price": 320.0,
-        "confirmed": True,
     }
 
 

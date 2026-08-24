@@ -336,7 +336,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         title="Загрузить себестоимость товара",
         description=(
             "Записывает себестоимость одного товара в Seller для указанного поставщика. "
-            "Перед изменением обязательно попросите пользователя подтвердить операцию и передайте confirm=true."
+            "Выполняется сразу по явным supplier_id_wb, nm_id и cost_price; отдельный confirm-вызов не нужен."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
@@ -349,18 +349,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         supplier_id_wb: int,
         nm_id: int,
         cost_price: float,
-        confirm: bool = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         normalized_cost_price = _as_float_value(cost_price)
-        if not confirm:
-            return {
-                "ok": False,
-                "error": {
-                    "code": "confirmation_required",
-                    "message": "Подтвердите запись себестоимости и повторите вызов с confirm=true.",
-                },
-            }
         if (
             isinstance(supplier_id_wb, bool)
             or isinstance(nm_id, bool)
@@ -404,7 +395,6 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "supplier_id_wb": supplier_id_wb,
                 "nm_id": nm_id,
                 "cost_price": normalized_cost_price,
-                "confirmed": True,
             }
         except GatewayError as error:
             result = _gateway_error(error)

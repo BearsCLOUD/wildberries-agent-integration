@@ -1,7 +1,7 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.7",
-  "description": "Бесплатная аналитика Wildberries, калькулятор юнит-экономики, подтверждаемая запись себестоимости и прогноз пополнения для Claude и других MCP-совместимых агентов.",
+  "version": "0.1.8",
+  "description": "Бесплатная аналитика Wildberries, калькулятор юнит-экономики, запись себестоимости и прогноз пополнения для Claude и других MCP-совместимых агентов.",
   "author": {
     "name": "BearsCLOUD",
     "url": "https://github.com/BearsCLOUD"

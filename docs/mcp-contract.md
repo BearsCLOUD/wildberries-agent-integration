@@ -46,6 +46,6 @@ Provider response bodies and credentials are intentionally omitted from errors.
 
 ## Запись себестоимости
 
-`wb_upload_cost_price` изменяет себестоимость одного `nm_id` в Seller. Инструмент требует
-`supplier_id_wb`, `nm_id`, `cost_price` и явное `confirm=true`; без подтверждения upstream-вызов
-не выполняется и возвращается `confirmation_required`. Bearer и токен Wildberries в аргументы не входят.
+`wb_upload_cost_price` изменяет себестоимость одного `nm_id` в Seller. Инструмент принимает
+`supplier_id_wb`, `nm_id` и `cost_price` и выполняет запись сразу при наличии bearer и ownership.
+Bearer и токен Wildberries в аргументы не входят.
