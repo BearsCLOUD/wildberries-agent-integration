@@ -10,7 +10,7 @@
 
 - Название: `Интеграция агента Wildberries`.
 - Описание: `Бесплатная русскоязычная аналитика Wildberries, SEO, цены и прогноз пополнения через Seller.`
-- MCP URL: `https://mcp.bears.ru/mcp` после функциональной production-проверки.
+- MCP URL: `https://wb.seller.bears.ru/mcp`.
 - OAuth issuer: `https://passport.bears.ru`.
 - Регистрация клиента: DCR, public client, authorization code, PKCE S256.
 - Поддержка: `https://github.com/BearsCLOUD/wildberries-agent-integration/issues`.

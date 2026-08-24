@@ -1,7 +1,7 @@
 # Пакет подачи в каталог OpenAI
 
 Статус: **черновик для ручного заполнения в OpenAI Platform**. Заявка не создана и не
-отправлена, а публичный MCP endpoint и домен для проверки пока не подтверждены. Этот файл
+отправлена; public MCP работает, но domain challenge и reviewer access ещё не закрыты. Этот файл
 собирает значения, которые можно копировать в форму для плагина с навыками и MCP.
 
 Официальная инструкция: [Submit plugins](https://developers.openai.com/plugins/deploy/submission).
@@ -32,7 +32,7 @@
 | Поле | Значение |
 |---|---|
 | Тип URL | `Universal` после появления одного рабочего endpoint для всех пользователей |
-| MCP Server URL | `[BLOCKER до runtime-проверки] https://mcp.bears.ru/mcp` |
+| MCP Server URL | `https://wb.seller.bears.ru/mcp` |
 | Авторизация | Seller OAuth 2.1 с DCR и PKCE S256 после production deployment; отдельные reviewer credentials без MFA, SMS, email confirmation и private network |
 | Регистрация нового пользователя | `https://seller.bears.ru/authentication/registration` — браузерный Seller onboarding, не MCP host |
 | Domain verification | `https://<mcp-host>/.well-known/openai-apps-challenge`, ответ только точным challenge token в `text/plain` |
@@ -41,8 +41,8 @@
 Публичный MCP должен быть размещён рядом с сервером аналитики. Модель не получает исходный
 WB-токен: пользователь вводит его только в Seller, а `wb_wildberries_proxy` принимает лишь
 фиксированную операцию и ограниченный payload. Это Seller Gateway, а не произвольный URL/method/
-header proxy. До появления production URL, identity bridge и тестового доступа не указывать
-`mcp.bears.ru` или любой другой непроверенный адрес в заявке.
+header proxy. В заявке используйте только проверенный `wb.seller.bears.ru`; `mcp.bears.ru`
+не является endpoint этой интеграции.
 
 Официальные требования к MCP, domain challenge, универсальному URL и annotations описаны в
 [MCP server review requirements](https://developers.openai.com/plugins/deploy/app-review) и
