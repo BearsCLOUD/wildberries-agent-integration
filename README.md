@@ -84,12 +84,21 @@ git clone https://github.com/BearsCLOUD/wildberries-agent-integration.git
 cd wildberries-agent-integration
 codex plugin marketplace add ./.agents/plugins
 codex plugin add wildberries-agent-integration@wildberries-agent
+codex mcp add wildberries-agent \
+  --url https://wb.seller.bears.ru/mcp \
+  --oauth-client-registration DCR \
+  --oauth-resource https://wb.seller.bears.ru/mcp
 ```
 
 Каталог плагина описан в `.agents/plugins/marketplace.json`, манифест — в
-`plugins/wildberries-agent-integration/.codex-plugin/plugin.json`.
+`plugins/wildberries-agent-integration/.codex-plugin/plugin.json`. Команда `codex mcp add`
+динамически регистрирует public OAuth client и открывает Seller onboarding; вводить
+WB-токен в терминал или чат не нужно.
 
 ### Claude
+
+Для hosted Claude Connector укажите `https://wb.seller.bears.ru/mcp`; Seller OAuth
+регистрирует public client через DCR и PKCE S256.
 
 Для локального Claude Code подключите MCP-команду из корня репозитория:
 
