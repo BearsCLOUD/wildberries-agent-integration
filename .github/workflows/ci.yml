@@ -35,8 +35,11 @@ jobs:
               data = json.loads(path.read_text())
               assert data['name'] == 'wildberries-agent-integration'
               assert data['version'] == package_version
-          json.loads(Path('.mcp.json').read_text())
           json.loads(Path('alpic.json').read_text())
+          codex = json.loads(Path('.codex-plugin/plugin.json').read_text())
+          assert 'mcpServers' not in codex
+          assert 'apps' not in codex
+          assert not Path('.mcp.json').exists()
           claude = json.loads(Path('.claude-plugin/plugin.json').read_text())
           assert claude['mcpServers'] == './claude/mcp.json'
           json.loads(Path('claude/mcp.json').read_text())

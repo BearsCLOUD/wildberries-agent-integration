@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.14
+
+- Removed the invalid Codex-local MCP declaration that broke `codex exec` during plugin loading.
+- Kept Codex distribution skills-only until OpenAI issues a registered remote app ID for the hosted MCP.
+- Documented `https://wb.seller.bears.ru/mcp` as the verified production endpoint without adding a second credential or analytics backend.
+
 ## 0.1.13
 
 - Added separate, fully synthetic reviewer inputs without copying Seller or Wildberries credentials.
