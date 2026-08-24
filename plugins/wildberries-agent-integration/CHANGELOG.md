@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.15
+
+- Added a fixed virtual reviewer sandbox with public synthetic identity, token, and supplier values.
+- Kept sandbox analytics, proxy reads, queue refresh, and cost-price writes deterministic and free of external effects.
+- Documented the OpenAI domain challenge flow and removed the obsolete reviewer-account requirement.
+
 ## 0.1.14
 
 - Removed the invalid Codex-local MCP declaration that broke `codex exec` during plugin loading.

@@ -11,5 +11,8 @@
 ## Integration Boundaries
 
 - The public MCP is a thin authenticated client of Seller services; do not implement a second analytics backend, credential store, or arbitrary HTTP proxy in this repository.
+- Allow the fixed reviewer sandbox only with public synthetic values.
+- Keep the reviewer sandbox isolated from the identity bridge, Seller services, and databases.
+- Never perform network calls from the reviewer sandbox.
 - Expose only reviewed, bounded Seller and Wildberries operation identifiers. Models must not control upstream hosts, paths, methods, headers, or credentials.
 - Keep source validation, public deployment, directory submission, and runtime acceptance as separate claims.
