@@ -14,6 +14,8 @@ Required production variables:
 The bridge receives the MCP bearer and `X-Identity-Audience: seller-gateway`, then returns a
 short-lived Seller bearer for the signed-in user. It must enforce the free core-agent entitlement
 and user/supplier ownership. Do not set `SELLER_ACCESS_TOKEN` in this deployment.
+See [identity-bridge.md](../docs/identity-bridge.md) for the response contract and entitlement
+boundary.
 
 ```bash
 cp plugins/wildberries-agent-integration/.env.example plugins/wildberries-agent-integration/.env

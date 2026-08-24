@@ -93,6 +93,7 @@ The adapter uses the existing Seller gateway routes rather than exposing interna
 - `/price_management/stocks-report/wb-warehouses` (optional gateway adapter; forecast has a regional fallback)
 
 See [SPEC.md](SPEC.md) for the bounded product contract and [docs/mcp-contract.md](docs/mcp-contract.md) for request and response examples.
+The exact identity and free-entitlement handoff is in [docs/identity-bridge.md](docs/identity-bridge.md).
 
 Hosted operators should publish the deployment-specific [privacy notice](plugins/wildberries-agent-integration/PRIVACY.md),
 [terms](plugins/wildberries-agent-integration/TERMS.md), and [support path](plugins/wildberries-agent-integration/SUPPORT.md)

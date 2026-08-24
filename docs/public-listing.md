@@ -13,6 +13,8 @@ reviewer account still belong to deployment and publisher operations.
 - Verify the free agent-feature claim against the billing and listing metadata. The bridge must
   grant the free core-agent entitlement; this repository must not be used to bypass a paid Seller
   route.
+- Attach the [identity bridge contract](identity-bridge.md) and document the free entitlement for
+  reviewers.
 
 ## Claude
 
