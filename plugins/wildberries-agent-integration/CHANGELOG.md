@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.9
+
+- Added Russian skills for competitor analysis, competitive pricing, regional sales, weather impact,
+  SEO analytics, product-card creation, design systems, and product-photo generation.
+- Added bounded read-only MCP tools for competitor context, price corridors, regional sales, weather
+  hypotheses, SEO completeness, and fixed Seller Gateway operations.
+- Kept provider credentials server-side and standardized all public package versions on plain SemVer.
+
 ## 0.1.8
 
 - Removed the extra confirmation round-trip from `wb_upload_cost_price`; explicit tool arguments now execute immediately within Seller ownership.

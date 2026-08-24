@@ -112,6 +112,12 @@ def test_public_tool_list_contains_analytics_and_calculators() -> None:
         "wb_connect_supplier",
         "wb_list_suppliers",
         "wb_analytics_summary",
+        "wb_competitor_analysis",
+        "wb_wildberries_proxy",
+        "wb_competitive_price",
+        "wb_sales_by_region",
+        "wb_sales_weather_impact",
+        "wb_seo_analytics",
         "wb_warehouse_stock",
         "wb_unit_economics",
         "wb_upload_cost_price",
@@ -254,6 +260,83 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monke
         "nm_id": 123456789,
         "cost_price": 320.0,
     }
+
+
+def test_wildberries_proxy_forwards_only_a_fixed_seller_operation(monkeypatch) -> None:
+    calls = []
+
+    async def fake_request(self, **kwargs):  # noqa: ARG001
+        calls.append(kwargs)
+        return {"data": [{"region_name": "Москва", "nm_id": 123456789}]}
+
+    monkeypatch.setattr(SellerGatewayClient, "request", fake_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_wildberries_proxy",
+            {
+                "supplier_id_wb": 31460,
+                "operation": "seller_tape",
+                "payload": {"nm_id": 123456789, "limit": 100, "page": 0},
+            },
+        )
+    )
+
+    assert result["ok"] is True
+    assert calls == [
+        {
+            "authorization": "Bearer synthetic-agent-token",
+            "path": "/statistics/tape/v2",
+            "method": "GET",
+            "params": {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "limit": 100,
+                "page": 0,
+            },
+            "json": None,
+            "request_id": None,
+        }
+    ]
+    assert result["data"] == {"data": [{"region_name": "Москва", "nm_id": 123456789}]}
+
+
+def test_wildberries_proxy_rejects_unknown_or_credential_payload_before_gateway(monkeypatch) -> None:
+    calls = []
+
+    async def unexpected_request(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("proxy validation must stop before the gateway")
+
+    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+
+    for operation, payload, code in (
+        ("arbitrary", {}, "proxy_operation_not_allowed"),
+        ("seller_tape", {"nm_id": 123456789, "access_token": "raw"}, "proxy_payload_not_allowed"),
+    ):
+        _, result = asyncio.run(
+            server.call_tool(
+                "wb_wildberries_proxy",
+                {"supplier_id_wb": 31460, "operation": operation, "payload": payload},
+            )
+        )
+        assert result["ok"] is False
+        assert result["error"]["code"] == code
+
+    assert calls == []
 
 
 def test_credential_fields_are_removed_from_nested_results() -> None:

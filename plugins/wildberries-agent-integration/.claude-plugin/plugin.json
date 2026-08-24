@@ -1,7 +1,7 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.8",
-  "description": "Бесплатная аналитика Wildberries, калькулятор юнит-экономики, запись себестоимости и прогноз пополнения для Claude и других MCP-совместимых агентов.",
+  "version": "0.1.9",
+  "description": "Русскоязычный плагин Wildberries: аналитика, конкуренты, SEO, карточки, дизайн, фото, регионы, погода, прокси-доступ, юнит-экономика и прогноз пополнения.",
   "author": {
     "name": "BearsCLOUD",
     "url": "https://github.com/BearsCLOUD"
@@ -9,5 +9,20 @@
   "homepage": "https://github.com/BearsCLOUD/wildberries-agent-integration",
   "repository": "https://github.com/BearsCLOUD/wildberries-agent-integration",
   "license": "MIT",
+  "keywords": [
+    "wildberries",
+    "аналитика продавца",
+    "конкурентный анализ",
+    "SEO Wildberries",
+    "поисковая оптимизация",
+    "региональная аналитика",
+    "погодные факторы",
+    "прокси для Wildberries",
+    "создание карточки товара",
+    "дизайн-система",
+    "генерация фото товара",
+    "юнит-экономика",
+    "прогноз пополнения"
+  ],
   "mcpServers": "./claude/mcp.json"
 }

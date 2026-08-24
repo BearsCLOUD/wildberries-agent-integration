@@ -12,15 +12,26 @@ from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from .calculations import inventory_forecast, replenishment_math, unit_economics
+from .calculations import (
+    aggregate_sales_by_region,
+    competitive_price_analysis,
+    competitor_analysis,
+    inventory_forecast,
+    replenishment_math,
+    seo_score,
+    unit_economics,
+    weather_sales_impact,
+)
 from .client import GatewayError, SellerGatewayClient
 from .config import Settings
+from .gateway_proxy import allowed_operations, build_gateway_request
 
 _MCP_SCOPES = [
     "analytics:read",
     "supplier:read",
     "supplier:connect",
     "cost_price:write",
+    "wb:proxy:read",
 ]
 
 
@@ -242,6 +253,336 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             return result
         except GatewayError as error:
             return _gateway_error(error)
+
+    @server.tool(
+        name="wb_competitor_analysis",
+        title="Анализ конкурентов Wildberries",
+        description=(
+            "Сравнивает товар продавца с явно переданными наблюдениями о конкурентах. "
+            "Не ищет конкурентов сам и не делает произвольных запросов к Wildberries; без исходных строк возвращает source_required."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_competitor_analysis(
+        supplier_id_wb: int,
+        nm_id: int,
+        competitor_rows: list[dict[str, Any]] | None = None,
+        seller_price: float | None = None,
+        target_position: str = "median",
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        if not _valid_positive_id(supplier_id_wb) or not _valid_positive_id(nm_id):
+            return _input_error(
+                "invalid_competitor_input",
+                "supplier_id_wb и nm_id должны быть положительными целыми числами.",
+            )
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
+        rows = competitor_rows or []
+        if not rows:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "source_required",
+                    "message": "Передайте наблюдения о конкурентах в competitor_rows; автоматический источник конкурентов не настроен.",
+                },
+            }
+        if len(rows) > 500:
+            return _input_error(
+                "too_many_competitor_rows",
+                "Передайте не более 500 строк конкурентов за один расчёт.",
+            )
+        try:
+            analysis = competitor_analysis(
+                competitor_rows=rows,
+                seller_price=seller_price,
+                target_position=target_position,
+            )
+            return {
+                "ok": True,
+                "supplier_id_wb": supplier_id_wb,
+                "nm_id": nm_id,
+                "source": "provided_rows",
+                "data": _compact(analysis),
+            }
+        except ValueError as error:
+            return _input_error("invalid_competitor_input", str(error))
+
+    @server.tool(
+        name="wb_wildberries_proxy",
+        title="Разрешённый прокси Wildberries",
+        description=(
+            "Выполняет одну из закреплённых операций Seller Gateway от имени выбранного поставщика. "
+            "Агент передаёт только имя операции и данные запроса: URL, HTTP-метод и токен недоступны модели."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_wildberries_proxy(
+        supplier_id_wb: int,
+        operation: str,
+        payload: dict[str, Any] | None = None,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        if not _valid_positive_id(supplier_id_wb):
+            return _input_error(
+                "invalid_proxy_supplier",
+                "supplier_id_wb должен быть положительным целым числом.",
+            )
+        if operation not in allowed_operations():
+            return _input_error(
+                "proxy_operation_not_allowed",
+                "Операция не входит в разрешённый список Seller Gateway.",
+            )
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
+        try:
+            request = build_gateway_request(
+                operation=operation,
+                supplier_id_wb=supplier_id_wb,
+                payload=payload,
+            )
+        except ValueError as error:
+            return _input_error(str(error), "Параметры операции не прошли безопасную проверку.")
+        try:
+            data = await gateway.request(
+                authorization=auth,
+                path=request["path"],
+                method=request["method"],
+                params=request["params"],
+                json=request["json"],
+                request_id=_request_id(ctx),
+            )
+            return {
+                "ok": True,
+                "supplier_id_wb": supplier_id_wb,
+                "operation": operation,
+                "data": _compact(data),
+            }
+        except GatewayError as error:
+            return _gateway_error(error)
+
+    @server.tool(
+        name="wb_competitive_price",
+        title="Конкурентный ориентир цены",
+        description=(
+            "Рассчитывает ценовой коридор по переданной выборке конкурентов и необязательный нижний ориентир по себестоимости и целевой марже. "
+            "Это расчёт без записи цены; комиссии, логистика и прочие расходы в нижний ориентир не входят."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_competitive_price(
+        seller_price: float,
+        competitor_prices: list[float],
+        cost_price: float | None = None,
+        target_margin_percent: float | None = None,
+        target_position: str = "median",
+    ) -> dict[str, Any]:
+        if len(competitor_prices) > 500:
+            return _input_error(
+                "too_many_competitor_prices",
+                "Передайте не более 500 цен конкурентов за один расчёт.",
+            )
+        try:
+            return {
+                "ok": True,
+                "data": _compact(
+                    competitive_price_analysis(
+                        seller_price=seller_price,
+                        competitor_prices=competitor_prices,
+                        cost_price=cost_price,
+                        target_margin_percent=target_margin_percent,
+                        target_position=target_position,
+                    )
+                ),
+            }
+        except ValueError as error:
+            return _input_error("invalid_competitive_price_input", str(error))
+
+    @server.tool(
+        name="wb_sales_by_region",
+        title="Продажи Wildberries по регионам",
+        description=(
+            "Группирует продажи текущего поставщика по регионам за ограниченный период. "
+            "Использует явно переданные строки либо для указанного nm_id только ленту Seller /statistics/tape/v2; не выполняет произвольные запросы."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_sales_by_region(
+        supplier_id_wb: int,
+        date_from: str,
+        date_to: str,
+        nm_id: int | None = None,
+        rows: list[dict[str, Any]] | None = None,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        if not _valid_positive_id(supplier_id_wb) or (
+            nm_id is not None and not _valid_positive_id(nm_id)
+        ):
+            return _input_error(
+                "invalid_regional_sales_input",
+                "supplier_id_wb и необязательный nm_id должны быть положительными целыми числами.",
+            )
+        try:
+            period = _validate_period(date_from, date_to)
+        except ValueError as error:
+            return _input_error("invalid_period", str(error))
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
+        source = "provided_rows"
+        coverage = "provided_rows"
+        selected_rows = rows
+        if selected_rows is None:
+            if nm_id is None:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "source_required",
+                        "message": "Передайте региональные строки в rows или укажите nm_id для чтения ограниченной ленты Seller.",
+                    },
+                }
+            source = "seller_statistics_tape_v2"
+            try:
+                payload = await gateway.request(
+                    authorization=auth,
+                    path="/statistics/tape/v2",
+                    params={
+                        "supplier_id_wb": supplier_id_wb,
+                        "nm_id": nm_id,
+                        "limit": 1000,
+                        "page": 0,
+                    },
+                    request_id=_request_id(ctx),
+                )
+            except GatewayError as error:
+                return _gateway_error(error)
+            raw_rows = _payload_rows(payload)
+            coverage = "truncated" if len(raw_rows) >= 1000 else "complete"
+            selected_rows = _tape_sales_rows(raw_rows, period=period)
+        if len(selected_rows) > 5000:
+            return _input_error(
+                "too_many_sales_rows",
+                "Передайте не более 5 000 строк продаж за один расчёт.",
+            )
+        if nm_id is not None:
+            selected_rows = [
+                row
+                for row in selected_rows
+                if _as_int_value(row.get("nm_id", row.get("nmId"))) == nm_id
+            ]
+        selected_rows = _filter_sales_period(selected_rows, period=period)
+        result = aggregate_sales_by_region(rows=selected_rows)
+        return {
+            "ok": True,
+            "supplier_id_wb": supplier_id_wb,
+            "period": period,
+            "nm_id": nm_id,
+            "source": source,
+            "coverage": coverage,
+            "data": _compact(result),
+        }
+
+    @server.tool(
+        name="wb_sales_weather_impact",
+        title="Связь погоды и продаж",
+        description=(
+            "Сопоставляет переданные ряды продаж и погоды по дате и региону и оценивает корреляцию температуры с продажами. "
+            "Корреляция не доказывает влияние погоды или причинно-следственную связь."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_sales_weather_impact(
+        sales_rows: list[dict[str, Any]],
+        weather_rows: list[dict[str, Any]],
+        region: str | None = None,
+    ) -> dict[str, Any]:
+        if len(sales_rows) > 5000 or len(weather_rows) > 5000:
+            return _input_error(
+                "too_many_weather_rows",
+                "Передайте не более 5 000 строк продаж и 5 000 строк погоды за один расчёт.",
+            )
+        observations = _join_sales_weather(
+            sales_rows=sales_rows,
+            weather_rows=weather_rows,
+            region=region,
+        )
+        result = weather_sales_impact(observations=observations)
+        return {
+            "ok": True,
+            "region": region,
+            "matched_observations": len(observations),
+            "data": _compact(result),
+        }
+
+    @server.tool(
+        name="wb_seo_analytics",
+        title="SEO-анализ карточки Wildberries",
+        description=(
+            "Оценивает полноту заголовка, описания, ключевых слов и характеристик по прозрачной эвристике. "
+            "Не обещает позицию в поиске Wildberries и не обращается к алгоритмам маркетплейса."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_seo_analytics(
+        title: str,
+        description: str,
+        keywords: list[str],
+        competitor_titles: list[str] | None = None,
+        characteristics: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if len(title) > 1000 or len(description) > 20_000 or len(keywords) > 200:
+            return _input_error(
+                "seo_input_too_large",
+                "Сократите заголовок, описание или список ключевых слов до поддерживаемого размера.",
+            )
+        if competitor_titles is not None and len(competitor_titles) > 200:
+            return _input_error(
+                "too_many_competitor_titles",
+                "Передайте не более 200 заголовков конкурентов.",
+            )
+        result = seo_score(
+            title=title,
+            description=description,
+            keywords=keywords,
+            characteristics=characteristics,
+        )
+        result["competitor_benchmark"] = _competitor_title_benchmark(
+            title=title,
+            competitor_titles=competitor_titles or [],
+        )
+        return {"ok": True, "data": _compact(result)}
 
     @server.tool(
         name="wb_warehouse_stock",
@@ -513,6 +854,203 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             return {"ok": False, "error": {"code": "invalid_forecast_input", "message": str(error)}}
 
     return server
+
+
+def _valid_positive_id(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _input_error(code: str, message: str) -> dict[str, Any]:
+    return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def _payload_rows(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if isinstance(payload, dict):
+        for key in ("data", "items", "rows", "result"):
+            rows = payload.get(key)
+            if isinstance(rows, list):
+                return [row for row in rows if isinstance(row, dict)]
+    return []
+
+
+def _tape_sales_rows(
+    rows: list[dict[str, Any]], *, period: dict[str, str]
+) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for row in _filter_sales_period(rows, period=period):
+        sale_date = _row_text(row, "sale_date", "saleDate")
+        if not sale_date:
+            continue
+        order_type = (_row_text(row, "order_type", "orderType") or "").casefold()
+        if row.get("date_return") or "возврат" in order_type or "return" in order_type:
+            continue
+        result.append(
+            {
+                "nm_id": row.get("nm_id", row.get("nmId")),
+                "region_name": _row_text(row, "region_name", "regionName"),
+                "date": sale_date[:10],
+                "sales": 1,
+                "revenue": _row_number(
+                    row,
+                    "sale_finished_price",
+                    "saleFinishedPrice",
+                    "finished_price",
+                    "finishedPrice",
+                )
+                or 0.0,
+            }
+        )
+    return result
+
+
+def _filter_sales_period(
+    rows: list[dict[str, Any]], *, period: dict[str, str]
+) -> list[dict[str, Any]]:
+    start = period["date_from"]
+    end = period["date_to"]
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        observed_date = _row_text(
+            row,
+            "sale_date",
+            "saleDate",
+            "date",
+            "day",
+            "order_date",
+            "orderDate",
+        )
+        if observed_date and not start <= observed_date[:10] <= end:
+            continue
+        result.append(row)
+    return result
+
+
+def _join_sales_weather(
+    *,
+    sales_rows: list[dict[str, Any]],
+    weather_rows: list[dict[str, Any]],
+    region: str | None,
+) -> list[dict[str, Any]]:
+    requested_region = region.casefold().strip() if isinstance(region, str) else ""
+    weather_by_key: dict[tuple[str, str], list[float]] = {}
+    weather_by_date: dict[str, list[float]] = {}
+    for row in weather_rows:
+        row_region = _row_text(
+            row, "region", "region_name", "regionName", "oblast", "oblastOkrugName"
+        )
+        normalized_region = row_region.casefold() if row_region else ""
+        if requested_region and normalized_region and normalized_region != requested_region:
+            continue
+        observed_date = _row_text(
+            row, "date", "day", "weather_date", "weatherDate", "observed_at"
+        )
+        temperature = _row_number(row, "temperature_c", "temperature", "temp_c")
+        if temperature is None:
+            minimum = _row_number(row, "temperature_min_c", "temperatureMinC", "temp_min_c")
+            maximum = _row_number(row, "temperature_max_c", "temperatureMaxC", "temp_max_c")
+            if minimum is not None and maximum is not None:
+                temperature = (minimum + maximum) / 2
+        if not observed_date or temperature is None:
+            continue
+        day = observed_date[:10]
+        weather_by_key.setdefault((day, normalized_region), []).append(temperature)
+        weather_by_date.setdefault(day, []).append(temperature)
+
+    sales_by_key: dict[tuple[str, str], float] = {}
+    for row in sales_rows:
+        row_region = _row_text(
+            row, "region", "region_name", "regionName", "oblast", "oblastOkrugName"
+        )
+        normalized_region = row_region.casefold() if row_region else ""
+        if requested_region and normalized_region and normalized_region != requested_region:
+            continue
+        observed_date = _row_text(
+            row,
+            "date",
+            "day",
+            "sale_date",
+            "saleDate",
+            "date_sale",
+            "order_date",
+            "orderDate",
+        )
+        sales = _row_number(
+            row,
+            "sales",
+            "sales_count",
+            "amount_sales",
+            "orders",
+            "amount_orders",
+            "quantity",
+            "revenue",
+        )
+        if not observed_date or sales is None:
+            continue
+        key = (observed_date[:10], normalized_region)
+        sales_by_key[key] = sales_by_key.get(key, 0.0) + sales
+
+    observations: list[dict[str, Any]] = []
+    weather_regions = {key[1] for key in weather_by_key if key[1]}
+    for (day, normalized_region), sales in sorted(sales_by_key.items()):
+        temperatures = weather_by_key.get((day, normalized_region))
+        # A date-only fallback is safe for an explicitly selected region, or when
+        # the supplied weather has at most one named region. Never mix several
+        # regional weather series into a sale row with a known region.
+        if not temperatures and (
+            requested_region or (not normalized_region and len(weather_regions) <= 1)
+        ):
+            temperatures = weather_by_date.get(day)
+        if not temperatures:
+            continue
+        observations.append(
+            {
+                "date": day,
+                "region": normalized_region or requested_region or None,
+                "sales": sales,
+                "temperature_c": sum(temperatures) / len(temperatures),
+            }
+        )
+    return observations
+
+
+def _competitor_title_benchmark(
+    *, title: str, competitor_titles: list[str]
+) -> dict[str, Any]:
+    lengths = [len(" ".join(value.split())) for value in competitor_titles if value.strip()]
+    if not lengths:
+        return {
+            "competitor_count": 0,
+            "average_title_length": None,
+            "current_title_length": len(" ".join(title.split())),
+        }
+    return {
+        "competitor_count": len(lengths),
+        "average_title_length": round(sum(lengths) / len(lengths), 1),
+        "minimum_title_length": min(lengths),
+        "maximum_title_length": max(lengths),
+        "current_title_length": len(" ".join(title.split())),
+        "note": "Сравнение отражает только длину явно переданных заголовков, а не их поисковую эффективность.",
+    }
+
+
+def _row_text(row: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
+def _row_number(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        if key not in row:
+            continue
+        value = _as_float_value(row[key])
+        if value is not None:
+            return value
+    return None
 
 
 def _auth_header(ctx: Context | None, settings: Settings) -> str | None:

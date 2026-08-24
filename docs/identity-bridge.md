@@ -24,7 +24,7 @@ ownership before returning data or accepting a write:
   "access_token": "<short-lived-seller-bearer>",
   "token_type": "Bearer",
   "expires_in": 300,
-  "scope": "analytics:read supplier:read supplier:connect cost_price:write",
+  "scope": "analytics:read supplier:read supplier:connect cost_price:write wb:proxy:read",
   "entitlements": ["wildberries-agent-free"]
 }
 ```
@@ -37,8 +37,9 @@ only the returned bearer to Seller Gateway; the original agent token is never fo
 `wildberries-agent-free` — техническая отметка бесплатного агентского доступа, а не платная
 подписка. Seller Gateway должен получать её из доверенного подписанного bridge-токена (или
 проверенного серверного introspection) и не требовать тариф, seat или оплату за вызов. Отметка
-остаётся привязанной к текущему пользователю и поставщику и разрешает только восемь опубликованных
-инструментов; запись ограничена описанным `cost_price:write` и не превращается в произвольный API-прокси.
+остаётся привязанной к текущему пользователю и поставщику и разрешает опубликованные инструменты
+плагина; фиксированные read-only операции Seller Gateway дополнительно используют `wb:proxy:read`.
+Запись ограничена описанным `cost_price:write` и не превращается в произвольный API-прокси.
 
 Finance and price enrichment may remain unavailable in older Gateway deployments; the plugin
 returns a warning instead of hiding the limitation. Once the entitlement is implemented for those
