@@ -34,4 +34,7 @@ jobs:
               assert data['name'] == 'wildberries-agent-integration'
               assert data['version'].startswith('0.1.2')
           json.loads(Path('.mcp.json').read_text())
+          claude = json.loads(Path('.claude-plugin/plugin.json').read_text())
+          assert claude['mcpServers'] == './claude/mcp.json'
+          json.loads(Path('claude/mcp.json').read_text())
           PY
