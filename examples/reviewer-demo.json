@@ -1,5 +1,11 @@
 {
-  "notice": "Полностью синтетический набор. Не содержит данных Seller, Wildberries или пользователя.",
+  "notice": "Полностью виртуальная sandbox. Эти фиксированные значения публичны и не включают данные Seller, Wildberries или пользователя.",
+  "sandbox": {
+    "synthetic": true,
+    "identity": "reviewer-sandbox",
+    "sandbox_access_token": "wb-agent-sandbox-token-v1",
+    "outbound_wildberries_calls": false
+  },
   "supplier_id_wb": 900000001,
   "nm_id": 9000000001,
   "unit_economics": {

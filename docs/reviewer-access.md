@@ -1,28 +1,32 @@
 # Доступ для ревьюера
 
-Тестовый доступ создаётся отдельным пользователем Seller и никогда не использует учётную запись,
-сессию или токен Wildberries владельца проекта.
+Ревьюер использует полностью виртуальную sandbox. Это не Seller-аккаунт, не тестовый кабинет и не
+поставщик Wildberries.
 
-## Что можно публиковать
+## Фиксированные значения sandbox
 
-- Передавайте логин и пароль ревьюера только в закрытой форме каталога OpenAI или Anthropic.
-- Храните пароль ревьюера только в Infisical и ротируйте его после завершения проверки.
-- Используйте синтетические идентификаторы и данные из [`examples/reviewer-demo.json`](../examples/reviewer-demo.json).
-- Оставляйте MFA, SMS и подтверждение почты выключенными для отдельной учётки ревьюера.
+Значения публичны и предназначены только для выбора синтетических fixtures:
 
-## Что нельзя копировать
+| Поле | Значение |
+|---|---|
+| `identity` | `reviewer-sandbox` |
+| `sandbox_access_token` | `wb-agent-sandbox-token-v1` |
+| `supplier_id_wb` | `900000001` |
 
-- Не копируйте личный Seller bearer, cookie, пароль или WB API token владельца.
-- Не добавляйте реальные credentials в Git, issue, CI artifact, MCP argument или tool result.
-- Не подключайте ревьюера к боевому поставщику с возможностью записи себестоимости.
+Sandbox token не является Seller bearer или WB API token. Код sandbox обязан распознавать эти
+значения до credential lookup, не обращаться к `apps/tokens-wb`, Infisical или Seller Gateway и не
+отправлять запросы в Wildberries.
 
-## Минимальная проверка
+## Проверка
 
-1. Зарегистрируйте отдельного пользователя штатным Seller onboarding.
-2. Сохраните сгенерированный пароль в Infisical без вывода значения в терминал или CI.
-3. Проверьте OAuth linking через DCR и PKCE S256.
-4. Выполните чистые расчёты на `examples/reviewer-demo.json`.
-5. До подачи проверьте supplier-scoped read и `wb_upload_cost_price` только на изолированном demo supplier.
+1. Загрузите [`examples/reviewer-demo.json`](../examples/reviewer-demo.json) как синтетический набор.
+2. Выполните чистые расчёты и fixture-safe аналитические примеры с фиксированными значениями.
+3. Убедитесь, что ответы не содержат Seller credentials, WB token или provider response body.
+4. Проверьте OpenAI challenge на публичном host по инструкции в [`openai-submission.md`](openai-submission.md).
 
-Синтетический JSON не является credential и не подменяет проверку живого production MCP. Пока
-изолированный demo supplier не создан, supplier-scoped положительные тесты остаются блокером подачи.
+Не создавайте пользователя Seller, не запрашивайте пароль и не подключайте sandbox к боевому
+поставщику. Реальный пользователь проходит обычный onboarding и вводит WB token только в Seller;
+этот путь описан в [`identity-bridge.md`](identity-bridge.md).
+
+Синтетические значения можно хранить в Git, issue и примерах: они не дают доступа к Seller или
+Wildberries и никогда не должны включать реальный credential.

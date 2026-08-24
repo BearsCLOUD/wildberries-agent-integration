@@ -1,8 +1,8 @@
 # Публичное описание и подготовка каталога
 
 Статус: исходники плагина подготовлены, но заявка в каталог OpenAI не создана и не отправлена.
-Публичный MCP host, deployment подготовленного Seller OAuth bridge, reviewer account и домен
-проверки должны быть подтверждены отдельно. Поля для копирования, тесты и список блокеров собраны в
+Публичный MCP host, deployment подготовленного Seller OAuth bridge, виртуальная reviewer sandbox и
+домен проверки должны быть подтверждены отдельно. Поля для копирования, тесты и список блокеров собраны в
 [пакете подачи OpenAI](openai-submission.md).
 
 ## Позиционирование
@@ -62,7 +62,9 @@ MCP URL, доменную проверку, annotations всех tools, starter 
 его как MCP host.
 
 Домен MCP должен вернуть только выданный OpenAI challenge token по
-`/.well-known/openai-apps-challenge`. Не указывайте `mcp.bears.ru` или другой адрес без
+`/.well-known/openai-apps-challenge`. Получите token в OpenAI Platform: **Create plugin → With MCP**,
+укажите `https://wb.seller.bears.ru/mcp`, дождитесь **Domain not verified** и разверните выданное
+значение на `https://wb.seller.bears.ru/.well-known/openai-apps-challenge`. Не указывайте `mcp.bears.ru` или другой адрес без
 функциональной проверки deployment. До закрытия блокеров нельзя писать, что плагин отправлен,
 одобрен или доступен в ChatGPT.
 
@@ -107,7 +109,7 @@ MCP server: до выдачи OpenAI зарегистрированного remo
 
 ## Принятие перед подачей
 
-Подача возможна только после появления production MCP URL, deployment OAuth/identity bridge, тестового
-аккаунта без MFA/private network, challenge token, публичного URL готового логотипа, deployment-specific legal URLs,
+Подача возможна только после появления production MCP URL, deployment OAuth/identity bridge, виртуальной
+reviewer sandbox, challenge token, публичного URL готового логотипа, deployment-specific legal URLs,
 verified developer/business identity, выбранных стран и повторного Scan Tools. Полный список и
 ровно 5+3 тестов находятся в [пакете подачи](openai-submission.md).
