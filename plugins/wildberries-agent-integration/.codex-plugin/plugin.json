@@ -1,6 +1,6 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260824163701",
   "description": "Free Wildberries analytics, unit-economics, and replenishment tools for Codex and MCP-compatible agents.",
   "author": {
     "name": "BearsCLOUD",
@@ -25,7 +25,11 @@
     "longDescription": "Connect a Seller account, inspect Wildberries metrics, calculate unit economics, and forecast how much stock to replenish by warehouse. Supplier tokens stay in the secure Seller flow.",
     "developerName": "BearsCLOUD",
     "category": "Analytics",
-    "capabilities": ["Analytics", "Calculations", "MCP"],
+    "capabilities": [
+      "Analytics",
+      "Calculations",
+      "MCP"
+    ],
     "websiteURL": "https://bears.ru",
     "defaultPrompt": [
       "Show my Wildberries sales for the last 14 days.",
