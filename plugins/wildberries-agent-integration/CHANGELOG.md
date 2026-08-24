@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- Added focused tests proving cost-price confirmation, bearer fail-closed behavior, and payload redaction.
+
 ## 0.1.4
 
 - Added `wb_upload_cost_price`, a confirmation-gated tool for writing one product cost price to Seller.

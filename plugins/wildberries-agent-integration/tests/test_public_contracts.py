@@ -133,7 +133,14 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
         assert annotations[name].openWorldHint is False
 
 
-def test_cost_price_upload_requires_explicit_confirmation() -> None:
+def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
+    calls = []
+
+    async def unexpected_request(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("confirmation must stop before the gateway")
+
+    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
     server = build_server(Settings(connect_url="https://seller.example/connect"))
     _, result = asyncio.run(
         server.call_tool(
@@ -149,6 +156,85 @@ def test_cost_price_upload_requires_explicit_confirmation() -> None:
 
     assert result["ok"] is False
     assert result["error"]["code"] == "confirmation_required"
+    assert calls == []
+
+
+def test_cost_price_upload_requires_bearer_after_confirmation(monkeypatch) -> None:
+    calls = []
+
+    async def unexpected_request(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("missing bearer must stop before the gateway")
+
+    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
+    server = build_server(
+        Settings(environment="production", gateway_url="https://seller.example")
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+            },
+        )
+    )
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "auth_required"
+    assert calls == []
+
+
+def test_cost_price_upload_forwards_scoped_payload_and_compacts_result(monkeypatch) -> None:
+    calls = []
+
+    async def fake_request(self, **kwargs):  # noqa: ARG001
+        calls.append(kwargs)
+        return {
+            "nm_id": 123456789,
+            "cost_price": 320.0,
+            "access_token": "must-not-return",
+            "nested": {"authorization": "must-not-return", "status": "saved"},
+        }
+
+    monkeypatch.setattr(SellerGatewayClient, "request", fake_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+            },
+        )
+    )
+
+    assert result["ok"] is True
+    assert calls == [
+        {
+            "authorization": "Bearer synthetic-agent-token",
+            "path": "/price_management/cost_price",
+            "method": "PUT",
+            "params": {"supplier_id_wb": 31460},
+            "json": {"nm_id": 123456789, "cost_price": 320.0},
+            "request_id": None,
+        }
+    ]
+    assert result["data"] == {
+        "nm_id": 123456789,
+        "cost_price": 320.0,
+        "nested": {"status": "saved"},
+    }
 
 
 def test_credential_fields_are_removed_from_nested_results() -> None:

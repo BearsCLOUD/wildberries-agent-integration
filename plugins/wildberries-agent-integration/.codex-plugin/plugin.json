@@ -1,6 +1,6 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Бесплатная аналитика Wildberries, калькулятор юнит-экономики и прогноз пополнения для Codex и MCP-совместимых агентов.",
   "author": {
     "name": "BearsCLOUD",

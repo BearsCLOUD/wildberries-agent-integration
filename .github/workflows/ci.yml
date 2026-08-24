@@ -32,7 +32,7 @@ jobs:
           for path in (Path('.codex-plugin/plugin.json'), Path('.claude-plugin/plugin.json')):
               data = json.loads(path.read_text())
               assert data['name'] == 'wildberries-agent-integration'
-              assert data['version'] == '0.1.4'
+              assert data['version'] == '0.1.5'
           json.loads(Path('.mcp.json').read_text())
           claude = json.loads(Path('.claude-plugin/plugin.json').read_text())
           assert claude['mcpServers'] == './claude/mcp.json'
