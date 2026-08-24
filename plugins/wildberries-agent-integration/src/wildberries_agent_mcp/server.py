@@ -26,6 +26,22 @@ from .calculations import (
 from .client import GatewayError, SellerGatewayClient
 from .config import Settings
 from .gateway_proxy import allowed_operations, build_gateway_request
+from .sandbox import (
+    SANDBOX_ACCESS_TOKEN,
+    analytics_summary as sandbox_analytics_summary,
+    connect_supplier as sandbox_connect_supplier,
+    error as sandbox_error,
+    inventory_inputs as sandbox_inventory_inputs,
+    is_sandbox_authorization,
+    proxy as sandbox_proxy,
+    refresh as sandbox_refresh,
+    regional_sales as sandbox_regional_sales,
+    require_supplier as sandbox_require_supplier,
+    result as sandbox_result,
+    suppliers as sandbox_suppliers,
+    upload_cost_price as sandbox_upload_cost_price,
+    warehouse_stock as sandbox_warehouse_stock,
+)
 
 _MCP_SCOPES = ["wildberries-agent-free"]
 _OAUTH_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": _MCP_SCOPES}]
@@ -141,6 +157,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         supplier_id_wb: int | None = None, ctx: Context | None = None
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
+        if is_sandbox_authorization(auth):
+            return sandbox_connect_supplier()
         if auth is not None:
             try:
                 oauth = await gateway.request(
@@ -211,6 +229,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_list_suppliers(ctx: Context) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if is_sandbox_authorization(auth):
+            return sandbox_suppliers()
         return await _gateway_result(gateway, settings, ctx, path="/suppliers", operation="list_suppliers")
 
     @server.tool(
@@ -232,13 +253,23 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         include_price_table: bool = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
         try:
             period = _validate_period(date_from, date_to)
         except ValueError as error:
-            return {"ok": False, "error": {"code": "invalid_period", "message": str(error)}}
-        auth = _auth_header(ctx, settings)
+            return _input_error_for_auth(auth, "invalid_period", str(error))
         if auth is None:
             return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            return sandbox_analytics_summary(
+                supplier_id_wb=supplier_id_wb,
+                period=period,
+                include_finance=include_finance,
+                include_price_table=include_price_table,
+            )
         try:
             combined = await gateway.request(
                 authorization=auth,
@@ -316,17 +347,21 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         auth = _auth_header(ctx, settings)
         if auth is None:
             return _auth_error()
+        sandbox_mode = is_sandbox_authorization(auth)
+        if sandbox_mode:
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
         rows = competitor_rows or []
         if not rows:
-            return {
-                "ok": False,
-                "error": {
-                    "code": "source_required",
-                    "message": "Передайте наблюдения о конкурентах в competitor_rows; автоматический источник конкурентов не настроен.",
-                },
-            }
+            return _input_error_for_auth(
+                auth,
+                "source_required",
+                "Передайте наблюдения о конкурентах в competitor_rows; автоматический источник конкурентов не настроен.",
+            )
         if len(rows) > 500:
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "too_many_competitor_rows",
                 "Передайте не более 500 строк конкурентов за один расчёт.",
             )
@@ -336,6 +371,14 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 seller_price=seller_price,
                 target_position=target_position,
             )
+            if sandbox_mode:
+                return sandbox_result(
+                    "competitor_analysis",
+                    supplier_id_wb=supplier_id_wb,
+                    nm_id=nm_id,
+                    source="provided_rows",
+                    data=_compact(analysis),
+                )
             return {
                 "ok": True,
                 "supplier_id_wb": supplier_id_wb,
@@ -344,7 +387,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "data": _compact(analysis),
             }
         except ValueError as error:
-            return _input_error("invalid_competitor_input", str(error))
+            return _input_error_for_auth(auth, "invalid_competitor_input", str(error))
 
     @server.tool(
         name="wb_wildberries_proxy",
@@ -366,6 +409,33 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         payload: dict[str, Any] | None = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            if operation not in allowed_operations():
+                return sandbox_error(
+                    "sandbox_operation_not_allowed",
+                    "Виртуальная песочница разрешает только операции из фиксированного списка.",
+                )
+            try:
+                build_gateway_request(
+                    operation=operation,
+                    supplier_id_wb=supplier_id_wb,
+                    payload=payload,
+                )
+            except ValueError as error:
+                return sandbox_error(
+                    str(error), "Параметры операции не прошли безопасную проверку."
+                )
+            return sandbox_proxy(
+                supplier_id_wb=supplier_id_wb,
+                operation=operation,
+                payload=payload,
+            )
         if not _valid_positive_id(supplier_id_wb):
             return _input_error(
                 "invalid_proxy_supplier",
@@ -376,9 +446,6 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "proxy_operation_not_allowed",
                 "Операция не входит в разрешённый список Seller Gateway.",
             )
-        auth = _auth_header(ctx, settings)
-        if auth is None:
-            return _auth_error()
         try:
             request = build_gateway_request(
                 operation=operation,
@@ -424,8 +491,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         period: Annotated[int, Field(strict=True, ge=1, le=366)] = 1,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
         if not _valid_positive_id(supplier_id_wb):
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "invalid_refresh_supplier",
                 "supplier_id_wb должен быть положительным целым числом.",
             )
@@ -434,13 +503,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             or isinstance(period, bool)
             or not 1 <= period <= 366
         ):
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "invalid_refresh_period",
                 "period должен быть целым числом от 1 до 366.",
             )
-        auth = _auth_header(ctx, settings)
         if auth is None:
             return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            return sandbox_refresh(supplier_id_wb=supplier_id_wb, period=period)
         try:
             data = await gateway.request(
                 authorization=auth,
@@ -523,20 +597,39 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         rows: list[dict[str, Any]] | None = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
         if not _valid_positive_id(supplier_id_wb) or (
             nm_id is not None and not _valid_positive_id(nm_id)
         ):
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "invalid_regional_sales_input",
                 "supplier_id_wb и необязательный nm_id должны быть положительными целыми числами.",
             )
         try:
             period = _validate_period(date_from, date_to)
         except ValueError as error:
-            return _input_error("invalid_period", str(error))
-        auth = _auth_header(ctx, settings)
+            return _input_error_for_auth(auth, "invalid_period", str(error))
         if auth is None:
             return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            synthetic_rows = sandbox_regional_sales(
+                supplier_id_wb=supplier_id_wb,
+                period=period,
+                nm_id=nm_id,
+            )
+            return sandbox_result(
+                "sales_by_region",
+                supplier_id_wb=supplier_id_wb,
+                period=period,
+                nm_id=nm_id,
+                source="virtual_fixture",
+                coverage="complete",
+                data=_compact(aggregate_sales_by_region(rows=synthetic_rows)),
+            )
         source = "provided_rows"
         coverage = "provided_rows"
         selected_rows = rows
@@ -688,11 +781,22 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         include_fbs_stocks: bool = True,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
-        if not 1 <= len(nm_ids) <= 1000:
-            return {"ok": False, "error": {"code": "invalid_nm_ids", "message": "Укажите от 1 до 1 000 nm_id."}}
         auth = _auth_header(ctx, settings)
+        if not 1 <= len(nm_ids) <= 1000:
+            return _input_error_for_auth(
+                auth, "invalid_nm_ids", "Укажите от 1 до 1 000 nm_id."
+            )
         if auth is None:
             return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            return sandbox_warehouse_stock(
+                supplier_id_wb=supplier_id_wb,
+                nm_ids=nm_ids,
+                include_fbs_stocks=include_fbs_stocks,
+            )
         try:
             data = await gateway.request(
                 authorization=auth,
@@ -778,6 +882,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         cost_price: float,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
         normalized_cost_price = _as_float_value(cost_price)
         if (
             isinstance(supplier_id_wb, bool)
@@ -788,16 +893,22 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             or normalized_cost_price is None
             or normalized_cost_price < 0
         ):
-            return {
-                "ok": False,
-                "error": {
-                    "code": "invalid_cost_price_input",
-                    "message": "supplier_id_wb и nm_id должны быть положительными, себестоимость — неотрицательной.",
-                },
-            }
-        auth = _auth_header(ctx, settings)
+            return _input_error_for_auth(
+                auth,
+                "invalid_cost_price_input",
+                "supplier_id_wb и nm_id должны быть положительными, себестоимость — неотрицательной.",
+            )
         if auth is None:
             return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            return sandbox_upload_cost_price(
+                supplier_id_wb=supplier_id_wb,
+                nm_id=nm_id,
+                cost_price=normalized_cost_price,
+            )
         try:
             data = await gateway.request(
                 authorization=auth,
@@ -879,11 +990,40 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         safety_days: int = 7,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
-        if nm_ids is not None and not 1 <= len(nm_ids) <= 100:
-            return {"ok": False, "error": {"code": "invalid_nm_ids", "message": "Укажите от 1 до 100 nm_id или не задавайте фильтр."}}
         auth = _auth_header(ctx, settings)
+        if nm_ids is not None and not 1 <= len(nm_ids) <= 100:
+            return _input_error_for_auth(
+                auth,
+                "invalid_nm_ids",
+                "Укажите от 1 до 100 nm_id или не задавайте фильтр.",
+            )
         if auth is None:
             return _auth_error()
+        if is_sandbox_authorization(auth):
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            deficit_rows, stock_rows = sandbox_inventory_inputs()
+            if nm_ids is not None:
+                allowed = set(nm_ids)
+                deficit_rows = [
+                    row for row in deficit_rows if _as_int_value(row.get("nm_id")) in allowed
+                ]
+                stock_rows = [
+                    row for row in stock_rows if _as_int_value(row.get("nmId")) in allowed
+                ]
+            forecast = inventory_forecast(
+                deficit_rows=deficit_rows,
+                stock_rows=stock_rows,
+                horizon_days=horizon_days,
+                safety_days=safety_days,
+            )
+            return sandbox_result(
+                "inventory_forecast",
+                supplier_id_wb=supplier_id_wb,
+                warehouse_stock_status="synthetic",
+                data=_compact(forecast),
+            )
         try:
             deficits = await gateway.request(
                 authorization=auth,
@@ -948,6 +1088,14 @@ def _valid_positive_id(value: Any) -> bool:
 
 def _input_error(code: str, message: str) -> dict[str, Any]:
     return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def _input_error_for_auth(
+    authorization: str | None, code: str, message: str
+) -> dict[str, Any]:
+    if is_sandbox_authorization(authorization):
+        return sandbox_error(code, message)
+    return _input_error(code, message)
 
 
 def _payload_rows(payload: Any) -> list[dict[str, Any]]:
@@ -1150,7 +1298,9 @@ def _auth_header(ctx: Context | None, settings: Settings) -> str | None:
         value = headers.get("authorization") if headers is not None else None
         if isinstance(value, str) and value.startswith("Bearer ") and len(value) > 7:
             return value
-    if settings.allows_static_token and settings.static_access_token:
+    if settings.static_access_token and (
+        settings.allows_static_token or settings.static_access_token == SANDBOX_ACCESS_TOKEN
+    ):
         token = settings.static_access_token
         return token if token.startswith("Bearer ") else f"Bearer {token}"
     return None
@@ -1275,6 +1425,12 @@ class _SellerIdentityTokenVerifier:
             character.isspace() for character in token
         ):
             return None
+        if token == SANDBOX_ACCESS_TOKEN:
+            return AccessToken(
+                token=token,
+                client_id="reviewer-sandbox",
+                scopes=_MCP_SCOPES,
+            )
         try:
             await self.gateway.verify_agent_token(f"Bearer {token}")
         except GatewayError:
