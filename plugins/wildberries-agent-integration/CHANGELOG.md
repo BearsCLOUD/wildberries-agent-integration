@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13
+
+- Added separate, fully synthetic reviewer inputs without copying Seller or Wildberries credentials.
+- Documented separate OpenAI and Anthropic directory handoffs for the same Russian MCP integration.
+- Aligned the submission pack with Seller OAuth dynamic client registration and PKCE S256.
+- Kept production deployment on the canonical Bears Zot registry path; runtime readiness remains a separate check.
+
 ## 0.1.12
 
 - Added an explicit `wildberries-agent-free` OAuth security scheme to every MCP tool for ChatGPT account linking.

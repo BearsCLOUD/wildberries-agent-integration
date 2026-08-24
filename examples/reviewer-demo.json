@@ -1,0 +1,42 @@
+{
+  "notice": "Полностью синтетический набор. Не содержит данных Seller, Wildberries или пользователя.",
+  "supplier_id_wb": 900000001,
+  "nm_id": 9000000001,
+  "unit_economics": {
+    "price": 1990,
+    "cost_price": 620,
+    "commission_percent": 18,
+    "logistics_per_unit": 120,
+    "storage_per_unit": 14,
+    "advertising_per_unit": 80,
+    "tax_percent": 6
+  },
+  "replenishment": {
+    "daily_sales": 10,
+    "current_stock": 30,
+    "target_days": 14,
+    "safety_days": 3,
+    "inbound_qty": 20
+  },
+  "competitors": [
+    {"nm_id": 9100000001, "title": "Термокружка 450 мл", "price": 1490, "rating": 4.8, "reviews": 420},
+    {"nm_id": 9100000002, "title": "Термокружка дорожная", "price": 1690, "rating": 4.7, "reviews": 310},
+    {"nm_id": 9100000003, "title": "Термостакан 450 мл", "price": 1390, "rating": 4.6, "reviews": 180}
+  ],
+  "sales": [
+    {"date": "2026-08-01", "region": "Москва", "orders": 18, "sales": 16, "returns": 1},
+    {"date": "2026-08-01", "region": "Казань", "orders": 7, "sales": 6, "returns": 1},
+    {"date": "2026-08-02", "region": "Санкт-Петербург", "orders": 10, "sales": 9, "returns": 0},
+    {"date": "2026-08-02", "region": "Москва", "orders": 14, "sales": 12, "returns": 1},
+    {"date": "2026-08-02", "region": "Казань", "orders": 10, "sales": 9, "returns": 0},
+    {"date": "2026-08-03", "region": "Санкт-Петербург", "orders": 12, "sales": 11, "returns": 0}
+  ],
+  "weather": [
+    {"date": "2026-08-01", "region": "Москва", "temperature_c": 27, "precipitation_mm": 0},
+    {"date": "2026-08-01", "region": "Казань", "temperature_c": 19, "precipitation_mm": 12},
+    {"date": "2026-08-02", "region": "Санкт-Петербург", "temperature_c": 17, "precipitation_mm": 5},
+    {"date": "2026-08-02", "region": "Москва", "temperature_c": 22, "precipitation_mm": 2},
+    {"date": "2026-08-02", "region": "Казань", "temperature_c": 21, "precipitation_mm": 1},
+    {"date": "2026-08-03", "region": "Санкт-Петербург", "temperature_c": 19, "precipitation_mm": 0}
+  ]
+}

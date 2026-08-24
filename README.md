@@ -198,6 +198,9 @@ reviewed WB API contracts. Production endpoint рядом с сервером а
 
 - [Ландшафт конкурентов и источники](docs/competitive-landscape.md)
 - [Identity bridge](docs/identity-bridge.md)
+- [Доступ и mock-данные для ревьюера](docs/reviewer-access.md)
+- [Подача в каталог OpenAI](docs/openai-submission.md)
+- [Подача в каталог Claude](docs/anthropic-submission.md)
 - [Безопасность](SECURITY.md)
 - [Приватность](plugins/wildberries-agent-integration/PRIVACY.md)
 - [Условия использования](plugins/wildberries-agent-integration/TERMS.md)
