@@ -88,14 +88,11 @@ codex mcp add wildberries-agent \
   --url https://wb.seller.bears.ru/mcp \
   --oauth-client-registration DCR \
   --oauth-resource https://wb.seller.bears.ru/mcp
-codex mcp login wildberries-agent \
-  --oauth-client-registration DCR \
-  --scopes wildberries-agent-free
 ```
 
 Каталог плагина описан в `.agents/plugins/marketplace.json`, манифест — в
-`plugins/wildberries-agent-integration/.codex-plugin/plugin.json`. Последние две команды
-динамически регистрируют public OAuth client и открывают Seller onboarding; вводить
+`plugins/wildberries-agent-integration/.codex-plugin/plugin.json`. Команда `codex mcp add`
+динамически регистрирует public OAuth client и открывает Seller onboarding; вводить
 WB-токен в терминал или чат не нужно.
 
 ### Claude
