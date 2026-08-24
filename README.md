@@ -4,11 +4,7 @@
   <img src="assets/logo.svg" width="88" height="88" alt="Wildberries Agent Integration">
 </p>
 
-<p align="center">
-  <a href="https://app.alpic.ai/new/clone?repositoryUrl=https://github.com/BearsCLOUD/wildberries-agent-integration">
-    <img src="https://assets.alpic.ai/button.svg" alt="Deploy on Alpic">
-  </a>
-</p>
+
 
 <p align="center"><strong>Бесплатная русскоязычная аналитика Wildberries для Codex, Claude и MCP-клиентов</strong></p>
 
@@ -209,6 +205,12 @@ reviewed WB API contracts. Production endpoint рядом с сервером а
 - [История изменений](plugins/wildberries-agent-integration/CHANGELOG.md)
 - [Social preview 1280×640](assets/social-preview.png)
 
+
+<p align="center">
+  <a href="https://app.alpic.ai/new/clone?repositoryUrl=https://github.com/BearsCLOUD/wildberries-agent-integration">
+    <img src="https://assets.alpic.ai/button.svg" alt="Deploy on Alpic">
+  </a>
+</p>
 ## Лицензия
 
 MIT — [LICENSE](LICENSE).
