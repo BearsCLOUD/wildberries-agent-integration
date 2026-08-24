@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 from starlette.testclient import TestClient
 
 from wildberries_agent_mcp.calculations import (
@@ -13,6 +14,7 @@ from wildberries_agent_mcp.calculations import (
 from wildberries_agent_mcp.client import GatewayError, SellerGatewayClient
 from wildberries_agent_mcp.config import Settings
 from wildberries_agent_mcp.server import (
+    _SellerIdentityTokenVerifier,
     _compact,
     _safe_handoff_url,
     _secure_base_url,
@@ -115,6 +117,7 @@ def test_public_tool_list_contains_analytics_and_calculators() -> None:
         "wb_analytics_summary",
         "wb_competitor_analysis",
         "wb_wildberries_proxy",
+        "wb_refresh_analytics",
         "wb_competitive_price",
         "wb_sales_by_region",
         "wb_sales_weather_impact",
@@ -135,14 +138,15 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
 
     assert annotations["wb_connect_supplier"].readOnlyHint is False
     assert annotations["wb_upload_cost_price"].readOnlyHint is False
+    assert annotations["wb_refresh_analytics"].readOnlyHint is False
     for name in names - {
         "wb_connect_supplier",
         "wb_upload_cost_price",
-        "wb_wildberries_proxy",
+        "wb_refresh_analytics",
     }:
         assert annotations[name].readOnlyHint is True
         assert annotations[name].openWorldHint is False
-    assert annotations["wb_wildberries_proxy"].readOnlyHint is False
+    assert annotations["wb_wildberries_proxy"].readOnlyHint is True
     assert annotations["wb_wildberries_proxy"].destructiveHint is False
 
 
@@ -314,6 +318,92 @@ def test_wildberries_proxy_forwards_only_a_fixed_seller_operation(monkeypatch) -
     assert result["data"] == {"data": [{"region_name": "Москва", "nm_id": 123456789}]}
 
 
+def test_analytics_refresh_is_a_separate_bounded_write_tool(monkeypatch) -> None:
+    calls = []
+
+    async def fake_request(self, **kwargs):  # noqa: ARG001
+        calls.append(kwargs)
+        return {"task_id": "task-123", "status": "queued"}
+
+    monkeypatch.setattr(SellerGatewayClient, "request", fake_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_refresh_analytics",
+            {"supplier_id_wb": 31460, "period": 7},
+        )
+    )
+
+    assert result["ok"] is True
+    assert calls == [
+        {
+            "authorization": "Bearer synthetic-agent-token",
+            "path": "/statistics/update/31460",
+            "method": "POST",
+            "params": {"period": 7},
+            "request_id": None,
+        }
+    ]
+
+
+@pytest.mark.parametrize("period", [0, 367, True])
+def test_analytics_refresh_rejects_invalid_period_before_gateway(
+    monkeypatch, period: object
+) -> None:
+    async def unexpected_request(*args, **kwargs):
+        raise AssertionError("validation must stop before the gateway")
+
+    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    with pytest.raises(ToolError):
+        asyncio.run(
+            server.call_tool(
+                "wb_refresh_analytics",
+                {"supplier_id_wb": 31460, "period": period},
+            )
+        )
+
+
+def test_public_bearer_is_verified_by_seller_identity_bridge(monkeypatch) -> None:
+    calls = []
+
+    async def fake_verify(self, authorization):  # noqa: ARG001
+        calls.append(authorization)
+
+    monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", fake_verify)
+    settings = Settings(environment="production")
+    verifier = _SellerIdentityTokenVerifier(SellerGatewayClient(settings))
+
+    access = asyncio.run(verifier.verify_token("opaque-agent-token"))
+
+    assert access is not None
+    assert access.scopes == ["wildberries-agent-free"]
+    assert calls == ["Bearer opaque-agent-token"]
+
+
+def test_rejected_public_bearer_does_not_receive_mcp_access(monkeypatch) -> None:
+    async def reject(self, authorization):  # noqa: ARG001
+        raise GatewayError("identity_bridge_rejected", status=401)
+
+    monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", reject)
+    settings = Settings(environment="production")
+    verifier = _SellerIdentityTokenVerifier(SellerGatewayClient(settings))
+
+    assert asyncio.run(verifier.verify_token("rejected-agent-token")) is None
+
+
 def test_wildberries_proxy_rejects_unknown_or_credential_payload_before_gateway(monkeypatch) -> None:
     calls = []
 
@@ -414,3 +504,25 @@ def test_openai_domain_challenge_fails_closed_when_not_configured() -> None:
 
     assert response.status_code == 404
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_oauth_resource_metadata_uses_canonical_issuer_and_free_scope() -> None:
+    server = build_server(
+        Settings(
+            public_url="https://mcp.example.com",
+            auth_issuer="https://auth.example.com",
+        )
+    )
+
+    with TestClient(server.streamable_http_app()) as client:
+        root_metadata = client.get("/.well-known/oauth-protected-resource")
+        mcp_metadata = client.get("/.well-known/oauth-protected-resource/mcp")
+
+    assert root_metadata.status_code == 200
+    assert mcp_metadata.status_code == 200
+    for response in (root_metadata, mcp_metadata):
+        assert response.json()["resource"] == "https://mcp.example.com/mcp"
+        assert response.json()["authorization_servers"] == [
+            "https://auth.example.com/"
+        ]
+        assert response.json()["scopes_supported"] == ["wildberries-agent-free"]

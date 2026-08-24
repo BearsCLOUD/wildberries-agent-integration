@@ -4,6 +4,12 @@
   <img src="assets/logo.svg" width="88" height="88" alt="Wildberries Agent Integration">
 </p>
 
+<p align="center">
+  <a href="https://app.alpic.ai/new/clone?repositoryUrl=https://github.com/BearsCLOUD/wildberries-agent-integration">
+    <img src="https://assets.alpic.ai/button.svg" alt="Deploy on Alpic">
+  </a>
+</p>
+
 <p align="center"><strong>Бесплатная русскоязычная аналитика Wildberries для Codex, Claude и MCP-клиентов</strong></p>
 
 <p align="center">
@@ -23,7 +29,7 @@
 
 ## В двух словах
 
-- 16 русскоязычных навыков и 14 MCP-инструментов.
+- 16 русскоязычных навыков и 15 MCP-инструментов.
 - Безопасное подключение поставщика через `seller.bears.ru`: исходный WB-токен не вводится в чат.
 - Отдельный калькулятор пополнения и прогноз «сколько и куда везти».
 - Конкурентный анализ, ценовой коридор, продажи по доступному региональному полю, погодные гипотезы и SEO-оценка.
@@ -61,7 +67,8 @@
 | `wb_list_suppliers` | Показать поставщиков текущего пользователя |
 | `wb_analytics_summary` | Сводка продаж, заказов, финансов, цен и остатков |
 | `wb_warehouse_stock` | Остатки по товару и складам |
-| `wb_wildberries_proxy` | Фиксированные операции Seller Gateway, включая очередь обновления аналитики |
+| `wb_wildberries_proxy` | Фиксированные read-only операции Seller Gateway |
+| `wb_refresh_analytics` | Поставить обновление аналитики в существующую очередь Seller |
 | `wb_competitor_analysis` | Сравнение с явно переданными конкурентами |
 | `wb_competitive_price` | Коридор цены и проверяемые сценарии |
 | `wb_sales_by_region` | Продажи по доступному региональному полю |
@@ -126,6 +133,21 @@ wildberries-agent-mcp --transport streamable-http --host 127.0.0.1 --port 8080
 В production дополнительно нужны HTTPS и deployment подготовленного OAuth 2.1/PKCE identity bridge:
 `SELLER_IDENTITY_BRIDGE_URL`, `MCP_PUBLIC_URL` и `MCP_AUTH_ISSUER`.
 
+### Alpic
+
+В репозитории есть явный `alpic.json`. Для импорта укажите root directory
+`plugins/wildberries-agent-integration` либо выполните:
+
+```bash
+npx alpic deploy \
+  --root-dir ./plugins/wildberries-agent-integration \
+  --runtime python3.13
+```
+
+Не публикуйте deployment без production OAuth/Seller variables из
+[`deploy/README.md`](deploy/README.md). Один только health endpoint не доказывает работоспособность
+пользовательской аналитики.
+
 ## Как устроено подключение
 
 ```mermaid
@@ -185,6 +207,7 @@ reviewed WB API contracts. Production endpoint рядом с сервером а
 - [Условия использования](plugins/wildberries-agent-integration/TERMS.md)
 - [Поддержка](SUPPORT.md)
 - [История изменений](plugins/wildberries-agent-integration/CHANGELOG.md)
+- [Social preview 1280×640](assets/social-preview.png)
 
 ## Лицензия
 

@@ -36,15 +36,16 @@ rankings, exact demand, or causal attribution.
 
 1. `wb_connect_supplier`: start a browser handoff to the existing secure onboarding flow. The Wildberries token is entered outside the prompt and is never returned to the agent.
 2. `wb_analytics_summary` and `wb_warehouse_stock`: read user-scoped analytics and stock data through the Seller gateway.
-3. `wb_wildberries_proxy`: call one reviewed Seller Gateway operation. The allowlist includes reads and enqueueing the existing analytics refresh; the model cannot supply a token, host, URL, path, HTTP method, or headers.
-4. `wb_competitor_analysis`: summarize a caller-supplied, comparable competitor sample inside an authenticated supplier scope. No sample means `source_required`, not an invented conclusion.
-5. `wb_competitive_price`: calculate the sample's quartile price corridor and seller position; optional cost inputs are constraints, not a complete profitability model.
-6. `wb_sales_by_region`: aggregate explicit rows or, for an authenticated supplier and `nm_id`, read the fixed `/statistics/tape/v2` source and filter the requested period locally. It must not infer buyer region from a warehouse or logistics hub.
-7. `wb_sales_weather_impact`: join supplied sales and weather rows by compatible date and region and report an observed correlation with sample-size and confounder caveats.
-8. `wb_seo_analytics`: calculate a deterministic content-completeness heuristic for the supplied title, description, keywords, characteristics, and optional competitor-title benchmark. It is not a Wildberries ranking model.
-9. `wb_unit_economics`: calculate margin, break-even price, commission, logistics, and scenario deltas from explicit inputs.
-10. `wb_upload_cost_price`: write the explicitly supplied cost price for one product to Seller.
-11. `wb_inventory_forecast`: combine recent sales and stock data into a transparent replenishment recommendation by warehouse.
+3. `wb_wildberries_proxy`: call one reviewed read-only Seller Gateway operation; the model cannot supply a token, host, URL, path, HTTP method, or headers.
+4. `wb_refresh_analytics`: enqueue one bounded analytics refresh in Seller without exposing the stored WB credential.
+5. `wb_competitor_analysis`: summarize a caller-supplied, comparable competitor sample inside an authenticated supplier scope. No sample means `source_required`, not an invented conclusion.
+6. `wb_competitive_price`: calculate the sample's quartile price corridor and seller position; optional cost inputs are constraints, not a complete profitability model.
+7. `wb_sales_by_region`: aggregate explicit rows or, for an authenticated supplier and `nm_id`, read the fixed `/statistics/tape/v2` source and filter the requested period locally. It must not infer buyer region from a warehouse or logistics hub.
+8. `wb_sales_weather_impact`: join supplied sales and weather rows by compatible date and region and report an observed correlation with sample-size and confounder caveats.
+9. `wb_seo_analytics`: calculate a deterministic content-completeness heuristic for the supplied title, description, keywords, characteristics, and optional competitor-title benchmark. It is not a Wildberries ranking model.
+10. `wb_unit_economics`: calculate margin, break-even price, commission, logistics, and scenario deltas from explicit inputs.
+11. `wb_upload_cost_price`: write the explicitly supplied cost price for one product to Seller.
+12. `wb_inventory_forecast`: combine recent sales and stock data into a transparent replenishment recommendation by warehouse.
 
 The five new analysis tools are bounded, read-only, idempotent operations. They accept structured
 data and documented identifiers, not an upstream URL, path, method, header, cookie, bearer, or raw Wildberries token. Their

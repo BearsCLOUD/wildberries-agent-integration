@@ -55,11 +55,10 @@ production deployment.
 
 Текущий allowlist операций: `competitor_cards`, `competitor_orders`, `card_details`, `card_photos`,
 `price_block`, `feedbacks`, `feedback_average`, `wb_api_capabilities`, `wb_api_operation`,
-`seller_tape`, `analytics_refresh`, `analytics_refresh_status`, `kt_statistics_period`,
-`kt_statistics_grouped`, `promotion_list` и `promotion_details`. `analytics_refresh` только
-ставит существующую задачу аналитики в очередь Seller и не изменяет данные Wildberries;
-`analytics_refresh_status` читает состояние этой задачи. Для остальных операций
-сохраняются supplier scope и bounded payload. Для
+`seller_tape`, `analytics_refresh_status`, `kt_statistics_period`, `kt_statistics_grouped`,
+`promotion_list` и `promotion_details`. `analytics_refresh_status` читает состояние задачи.
+Постановка обновления вынесена из read-only proxy в отдельный `wb_refresh_analytics`.
+Для остальных операций сохраняются supplier scope и bounded payload. Для
 `wb_api_capabilities` сервер сам строит `GET /suppliers/{supplier_id_wb}/wb/capabilities`.
 Для `wb_api_operation` агент передаёт только проверенный идентификатор операции и данные:
 

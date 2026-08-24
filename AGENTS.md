@@ -3,7 +3,7 @@
 ## Product Contract
 
 - Keep user-facing plugin, skill, tool, and directory descriptions in Russian.
-- Use plain SemVer versions such as `0.1.10`; do not add build, channel, or prerelease suffixes.
+- Use plain SemVer versions such as `1.2.3`; do not add build, channel, or prerelease suffixes.
 - Keep all agent-facing Wildberries functionality in the free `wildberries-agent-free` entitlement.
 - Treat Seller, including `apps/tokens-wb` in the canonical Seller repository, as the only store for Wildberries supplier credentials.
 - Identify a connected supplier by the authenticated user and `supplier_id_wb`. Never accept, return, persist, or log a raw Wildberries token in MCP arguments, results, or plugin-owned storage.

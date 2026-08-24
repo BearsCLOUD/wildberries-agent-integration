@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.11
+
+- Split analytics refresh into an explicit bounded write tool and restored truthful read-only proxy annotations.
+- Validate public MCP bearer tokens through the Seller identity bridge before exposing authenticated tools.
+- Aligned OAuth metadata with the free `wildberries-agent-free` scope used by Seller.
+- Added deterministic Alpic build and start configuration for the nested MCP package.
+
 ## 0.1.10
 
 - Added the exact OpenAI domain-verification challenge route for a production deployment.

@@ -56,11 +56,6 @@ _OPERATIONS = {
         "supplier": True,
     },
     "seller_tape": {"path": "/statistics/tape/v2", "method": "GET", "supplier": True},
-    "analytics_refresh": {
-        "path_template": "/statistics/update/{supplier_id_wb}",
-        "method": "POST",
-        "supplier": True,
-    },
     "analytics_refresh_status": {
         "path_template": "/suppliers_analytics/status_update/{supplier_id_wb}",
         "method": "GET",
@@ -174,8 +169,6 @@ def build_gateway_request(
                 "page": _bounded_int(payload.get("page", 0), 0, 100),
             }
         )
-    elif operation == "analytics_refresh":
-        query["period"] = _bounded_int(payload.get("period", 1), 1, 366)
     elif operation == "analytics_refresh_status":
         if payload:
             raise ValueError("proxy_payload_invalid")
@@ -212,7 +205,7 @@ def build_gateway_request(
             supplier_id_wb=supplier_id_wb,
             operation_id=payload["operation_id"],
         )
-    elif operation in {"analytics_refresh", "analytics_refresh_status"}:
+    elif operation == "analytics_refresh_status":
         path = path.format(supplier_id_wb=supplier_id_wb)
 
     return {

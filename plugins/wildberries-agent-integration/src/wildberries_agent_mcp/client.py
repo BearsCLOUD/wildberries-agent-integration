@@ -24,6 +24,13 @@ class SellerGatewayClient:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
+    async def verify_agent_token(self, authorization: str) -> None:
+        """Reject an invalid public MCP bearer before exposing authenticated tools."""
+        if not authorization.startswith("Bearer "):
+            raise GatewayError("auth_required", status=401)
+        if self.settings.requires_identity_bridge:
+            await self._resolve_authorization(authorization, request_id=None)
+
     async def request(
         self,
         *,

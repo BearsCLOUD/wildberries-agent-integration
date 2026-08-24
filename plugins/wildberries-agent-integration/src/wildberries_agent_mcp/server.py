@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from math import isfinite
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.types import ToolAnnotations
+from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
@@ -26,13 +27,7 @@ from .client import GatewayError, SellerGatewayClient
 from .config import Settings
 from .gateway_proxy import allowed_operations, build_gateway_request
 
-_MCP_SCOPES = [
-    "analytics:read",
-    "supplier:read",
-    "supplier:connect",
-    "cost_price:write",
-    "wb:proxy:read",
-]
+_MCP_SCOPES = ["wildberries-agent-free"]
 
 
 def build_server(settings: Settings | None = None) -> FastMCP:
@@ -61,7 +56,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         json_response=True,
         stateless_http=True,
         auth=auth_settings,
-        token_verifier=_BearerPresenceVerifier() if auth_settings else None,
+        token_verifier=(
+            _SellerIdentityTokenVerifier(gateway) if auth_settings else None
+        ),
     )
 
     @server.custom_route("/healthz", methods=["GET"], name="healthz")
@@ -105,7 +102,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         return JSONResponse(
             {
                 "resource": f"{public_url}/mcp",
-                "authorization_servers": [auth_issuer],
+                "authorization_servers": [f"{auth_issuer}/"],
                 "scopes_supported": _MCP_SCOPES,
             }
         )
@@ -341,11 +338,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "Агент передаёт только имя операции и данные запроса: URL, HTTP-метод и токен недоступны модели."
         ),
         annotations=ToolAnnotations(
-            # The fixed operation set includes analytics_refresh, which enqueues
-            # an analytics refresh in Seller's existing Celery/Redis contour.
-            readOnlyHint=False,
+            readOnlyHint=True,
             destructiveHint=False,
-            idempotentHint=False,
+            idempotentHint=True,
             openWorldHint=False,
         ),
     )
@@ -389,6 +384,60 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "ok": True,
                 "supplier_id_wb": supplier_id_wb,
                 "operation": operation,
+                "data": _compact(data),
+            }
+        except GatewayError as error:
+            return _gateway_error(error)
+
+    @server.tool(
+        name="wb_refresh_analytics",
+        title="Обновить аналитику Wildberries",
+        description=(
+            "Ставит обновление статистики выбранного поставщика в существующую очередь Seller. "
+            "Период ограничен 1–366 днями; WB-токен агенту не передаётся."
+        ),
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_refresh_analytics(
+        supplier_id_wb: int,
+        period: Annotated[int, Field(strict=True, ge=1, le=366)] = 1,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        if not _valid_positive_id(supplier_id_wb):
+            return _input_error(
+                "invalid_refresh_supplier",
+                "supplier_id_wb должен быть положительным целым числом.",
+            )
+        if (
+            not isinstance(period, int)
+            or isinstance(period, bool)
+            or not 1 <= period <= 366
+        ):
+            return _input_error(
+                "invalid_refresh_period",
+                "period должен быть целым числом от 1 до 366.",
+            )
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
+        try:
+            data = await gateway.request(
+                authorization=auth,
+                path=f"/statistics/update/{supplier_id_wb}",
+                method="POST",
+                params={"period": period},
+                request_id=_request_id(ctx),
+            )
+            return {
+                "ok": True,
+                "operation": "analytics_refresh",
+                "supplier_id_wb": supplier_id_wb,
+                "period": period,
                 "data": _compact(data),
             }
         except GatewayError as error:
@@ -1199,13 +1248,20 @@ def _secure_base_url(url: Any) -> str | None:
     return safe.rstrip("/")
 
 
-class _BearerPresenceVerifier:
-    """Передаёт проверку токена identity bridge и включает стандартный вызов MCP 401."""
+class _SellerIdentityTokenVerifier:
+    """Проверяет MCP bearer через Seller identity bridge до выдачи tool surface."""
+
+    def __init__(self, gateway: SellerGatewayClient) -> None:
+        self.gateway = gateway
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not isinstance(token, str) or not token.strip() or any(
             character.isspace() for character in token
         ):
+            return None
+        try:
+            await self.gateway.verify_agent_token(f"Bearer {token}")
+        except GatewayError:
             return None
         return AccessToken(
             token=token,

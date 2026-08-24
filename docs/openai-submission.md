@@ -103,7 +103,8 @@ header proxy. До появления production URL, identity bridge и тес�
 | `wb_list_suppliers` | `true` | `false` | `false` | Чтение списка подключённых поставщиков. |
 | `wb_analytics_summary` | `true` | `false` | `false` | Чтение аналитики за ограниченный период. |
 | `wb_competitor_analysis` | `true` | `false` | `false` | Вычисление по явно переданной выборке. |
-| `wb_wildberries_proxy` | `false` | `false` | `false` | Allowlist включает чтение и постановку обновления аналитики в существующую очередь Seller; arbitrary path/method/token недоступны. |
+| `wb_wildberries_proxy` | `true` | `false` | `false` | Только allowlisted чтения Seller Gateway; arbitrary path/method/token недоступны. |
+| `wb_refresh_analytics` | `false` | `false` | `false` | Ставит ограниченное обновление статистики в существующую очередь Seller. |
 | `wb_competitive_price` | `true` | `false` | `false` | Локальный расчёт ценового коридора без записи цены. |
 | `wb_sales_by_region` | `true` | `false` | `false` | Чтение и группировка доступного регионального поля. |
 | `wb_sales_weather_impact` | `true` | `false` | `false` | Локальный корреляционный расчёт по переданным строкам. |
@@ -122,11 +123,11 @@ header proxy. До появления production URL, identity bridge и тес�
 
 Текст release notes для текущей подачи:
 
-> Начальная подача/обновление до версии 0.1.10. Добавлены русскоязычные навыки для аналитики,
+> Начальная подача/обновление до версии 0.1.11. Добавлены русскоязычные навыки для аналитики,
 > конкурентов, ценового коридора, SEO, продаж по регионам, погодных гипотез, создания карточки,
 > дизайн-системы и генерации фото. MCP получил защищённое подключение поставщика, расчёт
 > юнит-экономики, калькулятор и прогноз пополнения, запись себестоимости и фиксированный
-> ограниченный Seller Gateway proxy, включая постановку обновления аналитики в очередь.
+> read-only Seller Gateway proxy и отдельный инструмент постановки аналитики в очередь.
 > Исходные WB-токены не принимаются в чате.
 
 ## Блокеры перед Submit

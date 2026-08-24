@@ -28,9 +28,9 @@
   <text x="70" y="274" fill="#FFF" fill-opacity=".72" font-family="Inter,Arial,sans-serif" font-size="16">Русскоязычный MCP для Codex и Claude</text>
   <g transform="translate(70 316)">
     <rect width="125" height="36" rx="18" fill="#FFF" fill-opacity=".11" stroke="#FFF" stroke-opacity=".2"/>
-    <text x="62" y="24" text-anchor="middle" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="650">14 навыков</text>
+    <text x="62" y="24" text-anchor="middle" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="650">16 навыков</text>
     <rect x="139" width="125" height="36" rx="18" fill="#FFF" fill-opacity=".11" stroke="#FFF" stroke-opacity=".2"/>
-    <text x="201" y="24" text-anchor="middle" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="650">14 tools</text>
+    <text x="201" y="24" text-anchor="middle" fill="#FFF" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="650">15 tools</text>
     <rect x="278" width="157" height="36" rx="18" fill="#FDE68A" fill-opacity=".9"/>
     <text x="356" y="24" text-anchor="middle" fill="#451A03" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700">бесплатно</text>
   </g>

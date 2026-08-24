@@ -20,7 +20,6 @@ def test_gateway_operations_are_fixed_and_supplier_scoped() -> None:
         "wb_api_capabilities",
         "wb_api_operation",
         "seller_tape",
-        "analytics_refresh",
         "analytics_refresh_status",
         "kt_statistics_period",
         "kt_statistics_grouped",
@@ -84,24 +83,12 @@ def test_supplier_scoped_body_is_fixed_to_the_selected_supplier() -> None:
     assert request["requires_supplier"] is True
 
 
-def test_analytics_refresh_and_status_use_existing_seller_queue_contract() -> None:
-    refresh = build_gateway_request(
-        operation="analytics_refresh",
-        supplier_id_wb=31460,
-        payload={"period": 7},
-    )
+def test_analytics_refresh_status_uses_existing_seller_queue_contract() -> None:
     status = build_gateway_request(
         operation="analytics_refresh_status",
         supplier_id_wb=31460,
     )
 
-    assert refresh == {
-        "path": "/statistics/update/31460",
-        "method": "POST",
-        "params": {"period": 7},
-        "json": None,
-        "requires_supplier": True,
-    }
     assert status == {
         "path": "/suppliers_analytics/status_update/31460",
         "method": "GET",
@@ -109,17 +96,6 @@ def test_analytics_refresh_and_status_use_existing_seller_queue_contract() -> No
         "json": None,
         "requires_supplier": True,
     }
-
-
-@pytest.mark.parametrize("period", [0, 367, True, "7"])
-def test_analytics_refresh_rejects_unbounded_period(period: object) -> None:
-    with pytest.raises(ValueError, match="proxy_payload_invalid"):
-        build_gateway_request(
-            operation="analytics_refresh",
-            supplier_id_wb=31460,
-            payload={"period": period},
-        )
-
 
 def test_feedback_operations_use_owned_supplier_and_bounded_inputs() -> None:
     feedbacks = build_gateway_request(

@@ -19,6 +19,22 @@ entitlement и сохранять проверку принадлежности 
 `SELLER_ACCESS_TOKEN` в публичном deployment. Контракт ответа описан в
 [identity-bridge.md](../docs/identity-bridge.md).
 
+## Alpic
+
+Для воспроизводимой сборки используйте вложенный `alpic.json` и корень MCP-пакета:
+
+```bash
+npx alpic deploy \
+  --root-dir ./plugins/wildberries-agent-integration \
+  --runtime python3.13
+```
+
+Перед первым production deploy добавьте перечисленные выше переменные в environment Alpic.
+Alpic не является identity provider: OAuth/identity bridge остаётся в Seller. После deployment
+проверьте `/mcp`, OAuth metadata, отклонение неверного bearer и полный authenticated tool call.
+Для OpenAI domain verification отдельно убедитесь, что выбранный hosting действительно отдаёт
+`/.well-known/openai-apps-challenge`; наличие MCP endpoint само по себе этого не гарантирует.
+
 ```bash
 cp plugins/wildberries-agent-integration/.env.example plugins/wildberries-agent-integration/.env
 # edit the values above, then:

@@ -1,6 +1,6 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Русскоязычный плагин Wildberries: аналитика, отзывы, конкуренты, SEO, карточки, фото, регионы, погода, юнит-экономика и прогноз пополнения.",
   "author": {
     "name": "BearsCLOUD",
