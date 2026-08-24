@@ -52,7 +52,7 @@ For a local MCP client, use the bundled `.mcp.json`. For an HTTP server:
 wildberries-agent-mcp --transport streamable-http --host 0.0.0.0 --port 8080
 ```
 
-Production deployments must put the server behind HTTPS and an OAuth 2.1/PKCE identity bridge. Set `SELLER_IDENTITY_BRIDGE_URL` to the service-to-service exchange endpoint; without it, production/staging calls fail closed. The public URL is deployment-specific and is intentionally not hard-coded in this repository.
+Production deployments must put the server behind HTTPS and an OAuth 2.1/PKCE identity bridge. Set `SELLER_IDENTITY_BRIDGE_URL` to the service-to-service exchange endpoint; without it, production/staging calls fail closed. Set `MCP_PUBLIC_URL` and `MCP_AUTH_ISSUER` to publish protected-resource metadata for ChatGPT/Claude connectors. The public URL is deployment-specific and is intentionally not hard-coded in this repository.
 
 ## Codex and Claude
 

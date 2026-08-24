@@ -34,6 +34,31 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     async def healthz(_: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "service": "wildberries-agent-integration"})
 
+    @server.custom_route(
+        "/.well-known/oauth-protected-resource", methods=["GET"], name="oauth_metadata"
+    )
+    @server.custom_route(
+        "/.well-known/oauth-protected-resource/mcp",
+        methods=["GET"],
+        name="oauth_metadata_mcp",
+    )
+    async def oauth_metadata(_: Request) -> JSONResponse:
+        if not settings.public_url or not settings.auth_issuer:
+            return JSONResponse(
+                {"error": "oauth_metadata_not_configured"}, status_code=503
+            )
+        return JSONResponse(
+            {
+                "resource": f"{settings.public_url}/mcp",
+                "authorization_servers": [settings.auth_issuer],
+                "scopes_supported": [
+                    "analytics:read",
+                    "supplier:read",
+                    "supplier:connect",
+                ],
+            }
+        )
+
     @server.tool(
         name="wb_connect_supplier",
         title="Connect a Wildberries supplier",

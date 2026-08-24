@@ -41,6 +41,7 @@ The plugin does not attempt to replace the Seller dashboard or expose a general-
 - Existing read routes include `/suppliers`, `/statistics/report/combined`, `/financial_report/v2`, `/price_management`, and `/price_management/stocks-report/wb-warehouses`.
 - The MCP server uses the configured Seller gateway URL. In production/staging it exchanges the caller's MCP bearer at `SELLER_IDENTITY_BRIDGE_URL` and forwards only the short-lived Seller bearer; in local dev/test it may use a direct bearer or development-only static token. It never accepts a raw Wildberries token as a tool argument.
 - Default transport is Streamable HTTP at `/mcp`. Local stdio is provided for development.
+- Hosted deployments expose OAuth protected-resource metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` when `MCP_PUBLIC_URL` and `MCP_AUTH_ISSUER` are configured.
 
 ## Authentication and safety
 
