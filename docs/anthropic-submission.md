@@ -1,6 +1,6 @@
 # Пакет подачи в каталог Claude
 
-Статус: черновик до публикации production MCP и отдельной учётной записи ревьюера.
+Статус: черновик до публикации production MCP и проверки виртуальной reviewer sandbox.
 
 Официальные требования: [Authentication](https://claude.com/docs/connectors/building/authentication),
 [Review criteria](https://claude.com/docs/connectors/building/review-criteria) и
@@ -20,7 +20,7 @@
 1. Проверьте публичные HTTPS MCP и OAuth discovery из внешней сети.
 2. Подключите endpoint как Claude Custom Connector и завершите Seller onboarding.
 3. Проверьте `title` и корректные read/write annotations каждого инструмента.
-4. Передайте отдельные credentials ревьюера только в закрытой форме каталога.
+4. Используйте публичные sandbox fixtures из [`reviewer-access.md`](reviewer-access.md); не создавайте Seller-аккаунт и не передавайте credentials.
 5. Не включайте генерацию фото в MCP-заявку: она остаётся локальным skill workflow с imagegen.
 
 MCP не принимает WB token, URL, HTTP method или headers. `wb_wildberries_proxy` принимает только

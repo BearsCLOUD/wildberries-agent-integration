@@ -1,8 +1,8 @@
 # Пакет подачи в каталог OpenAI
 
 Статус: **черновик для ручного заполнения в OpenAI Platform**. Заявка не создана и не
-отправлена; public MCP работает, но domain challenge и reviewer access ещё не закрыты. Этот файл
-собирает значения, которые можно копировать в форму для плагина с навыками и MCP.
+отправлена; public MCP работает, но domain challenge ещё не закрыт. Reviewer-проверка выполняется
+в полностью виртуальной sandbox без Seller-аккаунта и без исходящих запросов в Wildberries.
 
 Официальная инструкция: [Submit plugins](https://developers.openai.com/plugins/deploy/submission).
 Форма подачи: [OpenAI Platform → Plugins](https://platform.openai.com/plugins). OpenAI допускает
@@ -33,12 +33,12 @@
 |---|---|
 | Тип URL | `Universal` после появления одного рабочего endpoint для всех пользователей |
 | MCP Server URL | `https://wb.seller.bears.ru/mcp` |
-| Авторизация | Seller OAuth 2.1 с DCR и PKCE S256 после production deployment; отдельные reviewer credentials без MFA, SMS, email confirmation и private network |
+| Авторизация | Seller OAuth 2.1 с DCR и PKCE S256 для реальных пользователей; reviewer использует публичные sandbox fixtures без Seller credentials |
 | Регистрация нового пользователя | `https://seller.bears.ru/authentication/registration` — браузерный Seller onboarding, не MCP host |
-| Domain verification | `https://<mcp-host>/.well-known/openai-apps-challenge`, ответ только точным challenge token в `text/plain` |
+| Domain verification | Получить token в OpenAI Platform после **Create plugin → With MCP → Domain not verified** и разместить точное значение на `https://wb.seller.bears.ru/.well-known/openai-apps-challenge` |
 | CSP | Указать только реально используемые UI-домены; для текущего MCP без UI не добавлять лишние домены |
 
-Публичный MCP должен быть размещён рядом с сервером аналитики. Модель не получает исходный
+Публичный MCP размещён рядом с сервером аналитики. Модель не получает исходный
 WB-токен: пользователь вводит его только в Seller, а `wb_wildberries_proxy` принимает лишь
 фиксированную операцию и ограниченный payload. Это Seller Gateway, а не произвольный URL/method/
 header proxy. В заявке используйте только проверенный `wb.seller.bears.ru`; `mcp.bears.ru`
@@ -47,6 +47,19 @@ header proxy. В заявке используйте только провере
 Официальные требования к MCP, domain challenge, универсальному URL и annotations описаны в
 [MCP server review requirements](https://developers.openai.com/plugins/deploy/app-review) и
 [Security & Privacy](https://developers.openai.com/plugins/guides/security-privacy).
+
+## OpenAI challenge token
+
+Токен выдаёт не репозиторий и не этот документ. Получите его так:
+
+1. Откройте [OpenAI Platform → Plugins](https://platform.openai.com/plugins).
+2. Нажмите **Create plugin** и выберите **With MCP**.
+3. Укажите MCP URL `https://wb.seller.bears.ru/mcp`.
+4. Когда появится **Domain not verified**, скопируйте выданный challenge token.
+5. Разверните ровно это значение как plain text на `https://wb.seller.bears.ru/.well-known/openai-apps-challenge` и повторите проверку.
+
+Не генерируйте token самостоятельно и не коммитьте его в Git. Реальный host должен вернуть только
+выданное порталом значение.
 
 ## Starter prompts
 
@@ -60,11 +73,12 @@ header proxy. В заявке используйте только провере
 
 ## Ровно 5 положительных тестов
 
-Тесты ниже предназначены для вкладки Testing. Сетевые тесты выполняются только после публикации
-рабочего host и demo account; локальные расчёты не требуют доступа к Seller.
+Тесты ниже предназначены для вкладки Testing. Reviewer выполняет их на виртуальных fixtures с
+`identity=reviewer-sandbox`, `sandbox_access_token=synthetic-agent-token` и
+`supplier_id_wb=900000001`; sandbox не ищет credentials и не вызывает Seller Gateway или Wildberries.
 
 1. **Сводка продаж.** Вызвать `wb_analytics_summary` с `supplier_id_wb=900000001`, периодом
-   `2026-08-01`—`2026-08-14` и bearer тестового владельца. Ожидается ограниченный период,
+   `2026-08-01`—`2026-08-14` и `sandbox_access_token=synthetic-agent-token`. Ожидается ограниченный период,
    `ok=true`, сводка и отсутствие токена/секретов в ответе.
 2. **Калькулятор маржи.** Вызвать `wb_unit_economics` с ценой `1990`, себестоимостью `620`,
    комиссией `18`, логистикой `120`, хранением `14`, рекламой `80`, налогом `6`. Ожидаются
@@ -76,9 +90,9 @@ header proxy. В заявке используйте только провере
    HTTPS-переход в Seller для регистрации/подключения и инструкция ввести токен в браузере;
    MCP не должен просить или возвращать исходный токен.
 5. **Безопасный proxy-read.** Вызвать `wb_wildberries_proxy` с `supplier_id_wb=900000001`,
-   `operation=seller_tape` и bounded payload с `nm_id`, `limit` и `page`. На настроенном
-   Seller Gateway ожидается read-only ответ, supplier scope текущего владельца и отсутствие
-   URL, HTTP-метода, заголовков и credential в результате.
+   `operation=seller_tape` и bounded payload с `nm_id`, `limit` и `page`. Sandbox возвращает
+   fixture-safe read-only результат без вызова Seller Gateway и без URL, HTTP-метода, заголовков
+   или credential в результате.
 
 ## Ровно 3 отрицательных теста
 
@@ -136,8 +150,8 @@ header proxy. В заявке используйте только провере
 - [ ] Развернуть и функционально проверить production Streamable HTTP MCP URL.
 - [x] Реализовать source-контракт OAuth 2.1/PKCE, resource-bound opaque agent token и Seller
       identity exchange без нового хранилища WB credentials.
-- [ ] Развернуть OAuth/identity bridge, настроить client/resource/redirect URI и выдать reviewer
-      demo credentials без MFA, SMS, email confirmation и private network.
+- [x] Подготовить виртуальную reviewer sandbox с фиксированными синтетическими значениями без
+      Seller credentials и outbound Wildberries calls.
 - [ ] Передать выданный порталом exact challenge token в `OPENAI_APPS_CHALLENGE`, проверить
       реализованный `/.well-known/openai-apps-challenge` на production host и подтвердить домен.
 - [x] Добавить production-ready logo (`assets/logo.svg`); после push указать файл или публичный URL.
