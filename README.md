@@ -58,7 +58,7 @@ Production deployments must put the server behind HTTPS and an OAuth 2.1/PKCE id
 
 The canonical plugin source is `plugins/wildberries-agent-integration` and contains both `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json`.
 
-Codex uses the repository marketplace entry at `.agents/plugins/marketplace.json`. Claude can load the plugin directory directly or connect to the deployed Streamable HTTP endpoint. See [docs/public-listing.md](docs/public-listing.md) before submitting to a public catalog.
+Codex uses the repository marketplace entry at `.agents/plugins/marketplace.json` (`wildberries-agent`). Claude can load the plugin directory directly or connect to the deployed Streamable HTTP endpoint. See [docs/public-listing.md](docs/public-listing.md) before submitting to a public catalog.
 
 ## Source mapping
 
