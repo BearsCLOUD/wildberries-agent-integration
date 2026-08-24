@@ -1,7 +1,7 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.2+codex.20260824171435",
-  "description": "Free Wildberries analytics, unit-economics, and replenishment tools for Codex and MCP-compatible agents.",
+  "version": "0.1.3",
+  "description": "Бесплатная аналитика Wildberries, калькулятор юнит-экономики и прогноз пополнения для Codex и MCP-совместимых агентов.",
   "author": {
     "name": "BearsCLOUD",
     "url": "https://github.com/BearsCLOUD"
@@ -11,18 +11,20 @@
   "license": "MIT",
   "keywords": [
     "wildberries",
-    "seller analytics",
+    "аналитика продавца",
     "mcp",
     "codex",
     "claude",
+    "юнит-экономика",
+    "пополнение запасов",
     "unit economics",
     "replenishment"
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Wildberries Agent Integration",
-    "shortDescription": "Free seller analytics, calculator, and warehouse forecast.",
-    "longDescription": "Connect a Seller account, inspect Wildberries metrics, calculate unit economics, and forecast how much stock to replenish by warehouse or region. Supplier tokens stay in the secure Seller flow.",
+    "displayName": "Интеграция агента Wildberries",
+    "shortDescription": "Аналитика продавца, калькулятор и прогноз поставок.",
+    "longDescription": "Подключите аккаунт Seller, смотрите показатели Wildberries, считайте юнит-экономику и прогнозируйте объём пополнения по складам или регионам. Токен поставщика вводится только в защищённом интерфейсе Seller.",
     "developerName": "BearsCLOUD",
     "category": "Analytics",
     "capabilities": [
@@ -34,9 +36,9 @@
     "privacyPolicyURL": "https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/TERMS.md",
     "defaultPrompt": [
-      "Show my Wildberries sales for the last 14 days.",
-      "Calculate the break-even price for this product.",
-      "How much stock should go to each warehouse or region?"
+      "Покажи продажи Wildberries за последние 14 дней.",
+      "Рассчитай точку безубыточности этого товара.",
+      "Сколько товара отправить на каждый склад или регион?"
     ],
     "brandColor": "#7C3AED"
   },

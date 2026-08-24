@@ -1,52 +1,53 @@
-# Public listing handoff
+# Подача в публичный каталог
 
-The repository is ready for a catalog handoff, but it is not a hosted listing by itself. A public
-HTTPS host, OAuth identity bridge, support URL, deployment-specific privacy/terms notice, logo, and
-reviewer account still belong to deployment and publisher operations.
+Репозиторий готов к передаче в каталог, но сам по себе не является размещённым сервисом. Для
+подачи нужны публичный HTTPS-host, OAuth identity bridge, URL поддержки, deployment-specific
+уведомления о приватности и условиях, логотип и тестовый аккаунт рецензента.
 
 ## OpenAI / ChatGPT
 
-- Submit the canonical plugin directory: `plugins/wildberries-agent-integration`.
-- Use the deployed Streamable HTTP URL, not the local `.mcp.json` command.
-- Provide verified developer identity and reviewer credentials that do not require MFA or a private network.
-- Include five positive and three negative tool-call cases.
-- Verify the free agent-feature claim against the billing and listing metadata. The bridge must
-  grant the free core-agent entitlement; this repository must not be used to bypass a paid Seller
-  route.
-- Attach the [identity bridge contract](identity-bridge.md) and document the free entitlement for
-  reviewers.
+- Передайте канонический каталог `plugins/wildberries-agent-integration`.
+- Используйте опубликованный Streamable HTTP URL, а не локальную команду из `.mcp.json`.
+- Укажите подтверждённые данные разработчика и аккаунт рецензента без обязательной MFA или private network.
+- Приложите пять положительных и три отрицательных сценария вызова инструментов.
+- Сверьте обещание бесплатного агентского функционала с биллингом и метаданными каталога. Bridge
+  должен выдать entitlement для базовых агентских инструментов; репозиторий не используется для
+  обхода платного маршрута Seller.
+- Приложите [контракт identity bridge](identity-bridge.md) и описание entitlement.
 
 ## Claude
 
-- Validate the same directory with `claude plugin validate plugins/wildberries-agent-integration`.
-- For Claude Connector, publish the HTTPS Streamable HTTP MCP endpoint.
-- For Claude Desktop/Claude Code, use the bundled `claude/mcp.json`, which resolves paths through
-  `${CLAUDE_PLUGIN_ROOT}`. Codex uses the root `.mcp.json` with working-directory-relative paths.
+- Проверьте тот же каталог командой `claude plugin validate plugins/wildberries-agent-integration`.
+- Для Claude Connector опубликуйте HTTPS Streamable HTTP MCP endpoint.
+- Для Claude Desktop/Claude Code используется `claude/mcp.json` с `${CLAUDE_PLUGIN_ROOT}`.
+  Codex использует корневой `.mcp.json` с относительным рабочим каталогом.
 
-## Launch message
+## Текст карточки
 
-> Free MCP integration for Wildberries sellers: connect a supplier, inspect sales and stock, calculate margin and break-even price, and forecast how much inventory to send to each warehouse.
+> Бесплатная MCP-интеграция для продавцов Wildberries: подключение поставщика через Seller,
+> аналитика продаж и остатков, расчёт маржи и безубыточности, прозрачный прогноз количества
+> товара по складам или регионам.
 
-Do not promise a precise future-sales guarantee. Do not automate stars, reviews, or account creation. Adoption should be organic and measurable from real users.
+Не обещайте точный прогноз будущих продаж. Не автоматизируйте звёзды, отзывы или создание
+аккаунтов: рост должен быть органическим и измеримым по реальным пользователям.
 
-## Review cases
+## Сценарии проверки
 
-Use these cases with a reviewer account after the public host and identity bridge are live.
+Используйте их с тестовым аккаунтом после публикации host и identity bridge.
 
-Positive:
+Положительные:
 
-1. `wb_unit_economics` with explicit price, cost, commission, logistics, and tax returns a
-   reproducible margin and break-even formula.
-2. `wb_replenishment_math` with daily sales, stock, target days, safety days, and inbound units
-   returns a non-negative whole-unit recommendation.
-3. `wb_connect_supplier` returns an HTTPS Seller handoff and never asks for a token in chat.
-4. `wb_analytics_summary` returns a bounded period for a supplier owned by the signed-in user.
-5. `wb_inventory_forecast` returns recommended units, destination type, assumptions, and warnings.
+1. `wb_unit_economics` с ценой, себестоимостью, комиссией, логистикой и налогом возвращает
+   воспроизводимую маржу и формулу безубыточности.
+2. `wb_replenishment_math` с продажами, остатком, целевыми и безопасными днями, а также входящим
+   товаром возвращает неотрицательную рекомендацию целыми единицами.
+3. `wb_connect_supplier` возвращает HTTPS-переход Seller и никогда не просит токен в чате.
+4. `wb_analytics_summary` возвращает ограниченный период для поставщика текущего пользователя.
+5. `wb_inventory_forecast` возвращает количество, тип назначения, допущения и предупреждения.
 
-Negative:
+Отрицательные:
 
-1. A tool call without a user bearer returns `auth_required` (or the host's OAuth challenge), not
-   supplier data.
-2. A production server without `SELLER_IDENTITY_BRIDGE_URL` returns
-   `identity_bridge_not_configured` and does not call Seller.
-3. A handoff URL containing a token-like query parameter is rejected as `unsafe_connect_url`.
+1. Вызов без bearer возвращает `auth_required` или OAuth challenge host, но не данные поставщика.
+2. Production без `SELLER_IDENTITY_BRIDGE_URL` возвращает `identity_bridge_not_configured` и не
+   обращается к Seller.
+3. URL перехода с параметром, похожим на токен, отклоняется как `unsafe_connect_url`.

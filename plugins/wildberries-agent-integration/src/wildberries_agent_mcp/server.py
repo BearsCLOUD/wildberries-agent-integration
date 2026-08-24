@@ -35,8 +35,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     server = FastMCP(
         name="Wildberries Agent Integration",
         instructions=(
-            "Use Seller-scoped Wildberries analytics. Keep credentials out of prompts and results. "
-            "Prefer the calculator and transparent replenishment forecast for decisions."
+            "Используйте аналитику Wildberries в рамках аккаунта Seller. Не помещайте учётные данные "
+            "в запросы и результаты. Для решений сначала используйте калькулятор и прозрачный прогноз пополнения."
         ),
         host=settings.host,
         port=settings.port,
@@ -76,10 +76,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     @server.tool(
         name="wb_connect_supplier",
-        title="Connect a Wildberries supplier",
+        title="Подключить поставщика Wildberries",
         description=(
-            "Open the existing Seller browser flow for supplier onboarding. The user enters the "
-            "Wildberries personal token outside the agent prompt; this tool never accepts or returns it."
+            "Откройте существующий браузерный сценарий Seller для подключения поставщика. Пользователь вводит "
+            "персональный токен Wildberries вне диалога с агентом; этот инструмент никогда не принимает и не возвращает токен."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
@@ -110,8 +110,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                         return {
                             "ok": True,
                             "url": authorization_url,
-                            "flow": "Seller WB OAuth",
-                            "security": "Complete the provider consent in the browser; credentials stay outside the agent conversation.",
+                            "flow": "OAuth Wildberries в Seller",
+                            "security": "Подтвердите доступ в браузере; учётные данные остаются вне диалога с агентом.",
                         }
             except GatewayError as error:
                 # A deployment may not expose WB OAuth yet; the explicit browser handoff remains safe.
@@ -120,7 +120,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         if not settings.connect_url:
             return {
                 "ok": False,
-                "error": {"code": "connect_url_not_configured", "message": "Seller onboarding URL is not configured."},
+                "error": {"code": "connect_url_not_configured", "message": "URL подключения Seller не настроен."},
             }
         connect_url = _safe_handoff_url(
             _with_query(
@@ -137,20 +137,20 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "ok": False,
                 "error": {
                     "code": "unsafe_connect_url",
-                    "message": "Seller onboarding URL must be an HTTPS URL without credential-like query parameters.",
+                    "message": "URL подключения Seller должен быть HTTPS без параметров, похожих на учётные данные.",
                 },
             }
         return {
             "ok": True,
             "url": connect_url,
-            "flow": "Integration → Add supplier → Personal API token",
-            "security": "Enter the token in the Seller service, not in chat. The agent receives only connection status.",
+            "flow": "Интеграция Seller → Добавить поставщика → Персональный API-токен",
+            "security": "Введите токен в сервисе Seller, а не в чате. Агент получает только статус подключения.",
         }
 
     @server.tool(
         name="wb_list_suppliers",
-        title="List connected suppliers",
-        description="List suppliers available to the authenticated Seller user without credentials or token values.",
+        title="Список подключённых поставщиков",
+        description="Показывает поставщиков текущего пользователя Seller без учётных данных и значений токенов.",
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -163,8 +163,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     @server.tool(
         name="wb_analytics_summary",
-        title="Wildberries analytics summary",
-        description="Read sales/orders and optional finance/price summaries for one supplier and a bounded date range.",
+        title="Сводка аналитики Wildberries",
+        description="Читает продажи и заказы, а также доступные финансовые и ценовые показатели за ограниченный период.",
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -236,8 +236,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     @server.tool(
         name="wb_warehouse_stock",
-        title="Wildberries warehouse stock",
-        description="Read current WB warehouse stock for up to 1,000 nm IDs through the Seller gateway.",
+        title="Остатки Wildberries по складам",
+        description="Читает текущие остатки на складах Wildberries для максимум 1 000 nm_id через шлюз Seller.",
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -253,7 +253,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if not 1 <= len(nm_ids) <= 1000:
-            return {"ok": False, "error": {"code": "invalid_nm_ids", "message": "Provide between 1 and 1,000 nm IDs."}}
+            return {"ok": False, "error": {"code": "invalid_nm_ids", "message": "Укажите от 1 до 1 000 nm_id."}}
         auth = _auth_header(ctx, settings)
         if auth is None:
             return _auth_error()
@@ -274,19 +274,19 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     "error": {
                         "code": "warehouse_stock_unavailable",
                         "status": error.status,
-                        "message": "The configured Seller gateway does not expose warehouse stock yet.",
+                        "message": "Настроенный шлюз Seller пока не публикует остатки по складам.",
                     },
                     "fallback": {
                         "tool": "wb_inventory_forecast",
-                        "note": "The forecast can still use regional deficit demand and will label the allocation as a heuristic.",
+                        "note": "Прогноз может использовать региональный дефицит и пометит распределение как эвристику.",
                     },
                 }
             return _gateway_error(error)
 
     @server.tool(
         name="wb_unit_economics",
-        title="Wildberries unit economics calculator",
-        description="Calculate net price, commission, tax, costs, profit, margin, and break-even price from explicit inputs.",
+        title="Калькулятор юнит-экономики Wildberries",
+        description="Рассчитывает цену нетто, комиссию, налог, затраты, прибыль, маржу и точку безубыточности по заданным вводным.",
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -324,8 +324,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     @server.tool(
         name="wb_replenishment_math",
-        title="Replenishment calculator",
-        description="Calculate a deterministic replenishment quantity from daily sales, stock, target days, and safety days.",
+        title="Калькулятор пополнения",
+        description="Рассчитывает количество пополнения по дневным продажам, остаткам, целевому покрытию и запасу безопасности.",
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -353,10 +353,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     @server.tool(
         name="wb_inventory_forecast",
-        title="Warehouse replenishment forecast",
+        title="Прогноз пополнения по складам",
         description=(
-            "Use Seller deficit and warehouse stock data to estimate how many units to replenish and where. "
-            "Return assumptions and warnings; this is a recommendation, not a sales guarantee."
+            "Использует дефицит Seller и остатки по складам, чтобы оценить количество пополнения и направления. "
+            "Возвращает допущения и предупреждения; это рекомендация, а не гарантия продаж."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -373,7 +373,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if nm_ids is not None and not 1 <= len(nm_ids) <= 100:
-            return {"ok": False, "error": {"code": "invalid_nm_ids", "message": "Provide 1-100 nm IDs or omit the filter."}}
+            return {"ok": False, "error": {"code": "invalid_nm_ids", "message": "Укажите от 1 до 100 nm_id или не задавайте фильтр."}}
         auth = _auth_header(ctx, settings)
         if auth is None:
             return _auth_error()
@@ -471,7 +471,7 @@ async def _gateway_result(
 
 
 def _auth_error() -> dict[str, Any]:
-    return {"ok": False, "error": {"code": "auth_required", "message": "Connect the Seller account before requesting supplier data."}}
+    return {"ok": False, "error": {"code": "auth_required", "message": "Подключите аккаунт Seller перед запросом данных поставщика."}}
 
 
 def _gateway_error(error: GatewayError) -> dict[str, Any]:
@@ -545,7 +545,7 @@ def _secure_base_url(url: Any) -> str | None:
 
 
 class _BearerPresenceVerifier:
-    """Leave token authorization to the identity bridge while enabling MCP's 401 challenge."""
+    """Передаёт проверку токена identity bridge и включает стандартный вызов MCP 401."""
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not isinstance(token, str) or not token.strip() or any(

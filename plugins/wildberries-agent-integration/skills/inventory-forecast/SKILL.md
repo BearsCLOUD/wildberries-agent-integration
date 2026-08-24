@@ -1,38 +1,43 @@
 ---
 name: inventory-forecast
-description: Forecast Wildberries replenishment quantities and warehouse destinations from recent demand and current stock. Use for “how many units” or “where to ship” requests; do not use for arbitrary inventory writes.
+description: Прогнозируй объём пополнения Wildberries и направления по складам на основе спроса и остатков. Используй для вопросов «сколько товара» и «куда везти»; не выполняй произвольные изменения запасов.
 ---
 
-# Inventory forecast
+# Прогноз пополнения
 
-Use `wb_inventory_forecast` for the connected supplier. If the tool needs separate reads, combine `wb_analytics_summary` with `wb_warehouse_stock` and keep the recommendation traceable to both.
+Используй `wb_inventory_forecast` для подключённого поставщика. Если нужны отдельные чтения,
+сочетай `wb_analytics_summary` и `wb_warehouse_stock`, чтобы рекомендация была проверяема по обоим источникам.
 
-## Inputs
+## Входные данные
 
-- supplier and SKU or product scope;
-- forecast horizon and target coverage days;
-- recent sales window (default only when the user accepts it);
-- current stock, inbound stock, and warehouse split when available;
-- optional service level, seasonality, or minimum shipment size.
+- поставщик и область товаров или SKU;
+- горизонт прогноза и целевое покрытие в днях;
+- недавнее окно продаж (по умолчанию только с согласия пользователя);
+- текущий и ожидаемый остаток, а также разрез по складам, если доступен;
+- при необходимости — уровень сервиса, сезонность или минимальный размер поставки.
 
-Return recommended units by warehouse, coverage horizon, demand rate, stock used in the calculation, and uncertainty notes. If warehouse stock is unavailable, return regional destinations from `deficit_districts` and label them as a heuristic rather than calling them warehouses. A simple baseline is:
+Верни количество по складам, горизонт покрытия, темп спроса, использованные остатки и оговорки
+неопределённости. Если складские остатки недоступны, используй `deficit_districts`, назови
+направления регионами и пометь распределение эвристикой. Базовая формула:
 
-`recommended_units = max(0, demand_rate * coverage_days + safety_stock - available_stock - inbound_stock)`
+`recommended_units = max(0, demand_rate × coverage_days + safety_stock − available_stock − inbound_stock)`
 
-State how demand rate and safety stock were chosen. If warehouse-level demand or stock is unavailable, say that the allocation is approximate and ask whether a fallback is acceptable.
+Объясни выбор темпа спроса и запаса безопасности. Если данных по складам нет, скажи, что
+распределение приблизительное, и уточни, приемлема ли такая эвристика.
 
-## Safety
+## Безопасность
 
-- This is a planning recommendation, not a guarantee of sales or delivery capacity. Flag sparse, stale, promotional, or anomalous data.
-- Never silently allocate all stock to one warehouse or claim an operational shipment was created.
-- Do not expose tokens or raw provider responses; do not perform inventory, price, or discount writes.
+- Это плановая рекомендация, а не гарантия продаж или доставки. Отмечай редкие, устаревшие,
+  промо- и аномальные данные.
+- Не направляй весь товар на один склад молча и не утверждай, что поставка создана.
+- Не показывай токены и сырые ответы провайдера; не выполняй изменения запасов, цен или скидок.
 
-## Examples
+## Примеры
 
-**User:** “How many units of SKU A should go to Kazan for the next 21 days?”
+**Запрос:** «Сколько единиц SKU A отправить в Казань на следующие 21 день?»
 
-**Agent:** Fetch demand and stock, show the baseline formula and assumptions, then return a rounded recommendation with uncertainty.
+**Ответ:** Получи спрос и остатки, покажи формулу и допущения, верни округленную рекомендацию с неопределённостью.
 
-**User:** “We have 300 units inbound; where should they go?”
+**Запрос:** «У нас в пути 300 единиц, куда их распределить?»
 
-**Agent:** Compare warehouse demand and coverage, explain the split, and clearly label it as a plan for the seller to execute.
+**Ответ:** Сравни спрос и покрытие складов, объясни распределение и назови его планом для выполнения продавцом.

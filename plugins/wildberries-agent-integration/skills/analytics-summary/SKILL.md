@@ -1,33 +1,37 @@
 ---
 name: analytics-summary
-description: Summarize a seller's Wildberries sales, orders, returns, finance, prices, or stock for a stated period. Use when the user asks for analytics, a trend explanation, or a compact operational report; do not use for replenishment quantities or margin calculations.
+description: Суммируй продажи, заказы, возвраты, финансы, цены и остатки продавца Wildberries за указанный период. Используй для аналитики, объяснения тренда и короткого операционного отчёта; не используй для расчёта пополнения или маржи.
 ---
 
-# Analytics summary
+# Сводка аналитики
 
-Use the read-only `wb_analytics_summary` tool for the connected supplier. Keep the answer scoped to the authenticated user and name the supplier and reporting period.
+Используй read-only инструмент `wb_analytics_summary` для подключённого поставщика. Ограничивай
+ответ текущим пользователем, явно называй поставщика и период отчёта.
 
-## Inputs
+## Входные данные
 
-- `supplier_id` or the user's unambiguous connected-supplier name;
-- `from` and `to` dates (ask when the period is ambiguous);
-- optional metric focus: sales, orders, returns, finance, prices, or stock;
-- optional comparison period and requested detail level.
+- `supplier_id` или однозначное имя подключённого поставщика;
+- даты `from` и `to` (уточни период, если он не задан);
+- нужные показатели: продажи, заказы, возвраты, финансы, цены или остатки;
+- при необходимости — период сравнения и требуемая детализация.
 
-Report the source period, data freshness, headline metrics, material changes, and a short explanation of likely drivers. Separate observed values from interpretation and call out missing or partial data.
+Укажи исходный период, свежесть данных, ключевые показатели, заметные изменения и краткое
+объяснение вероятных причин. Разделяй наблюдаемые значения и интерпретации, отмечай неполные данные.
 
-## Safety
+## Безопасность
 
-- Never request, expose, or log a Wildberries token, cookie, bearer token, or raw provider error body.
-- Do not imply that a dashboard read changed anything. Do not perform price, discount, or other writes from this skill.
-- If the supplier is not connected or access is denied, explain the next safe action instead of guessing.
+- Никогда не запрашивай и не показывай токен Wildberries, cookie, bearer или сырой ответ провайдера.
+- Не выдавай чтение за изменение данных и не выполняй операции с ценами, скидками или поставщиками.
+- При отсутствии поставщика или доступа объясни следующий безопасный шаг, не додумывай данные.
 
-## Examples
+## Примеры
 
-**User:** “Show sales and returns for the last 14 days and explain the drop.”
+**Запрос:** «Покажи продажи и возвраты за последние 14 дней и объясни падение».
 
-**Agent:** Fetch the period, compare with the preceding 14 days when available, label the comparison, and list evidence-backed hypotheses with caveats.
+**Ответ:** Получи период, при наличии сравни с предыдущими 14 днями, подпиши сравнение и перечисли
+гипотезы только с опорой на данные и оговорками.
 
-**User:** “Give me a compact weekly report for supplier 123.”
+**Запрос:** «Сделай короткий недельный отчёт по поставщику 123».
 
-**Agent:** Return a compact table with supplier, period, freshness, sales, orders, returns, and the most useful next action.
+**Ответ:** Верни компактную таблицу с поставщиком, периодом, свежестью, продажами, заказами,
+возвратами и ближайшим полезным действием.

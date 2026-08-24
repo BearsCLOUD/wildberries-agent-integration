@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- Added a dedicated replenishment calculator skill for fast, transparent quantity planning.
+- Localized catalog descriptions, MCP tool metadata, skills, and public README to Russian.
+- Standardized published manifests on plain SemVer without build or cachebuster suffixes.
+
 ## 0.1.2
 
 - Added a Claude-specific MCP config using `${CLAUDE_PLUGIN_ROOT}` while keeping Codex's local config separate.

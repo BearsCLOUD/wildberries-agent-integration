@@ -1,33 +1,36 @@
 ---
 name: connect-supplier
-description: Help a seller connect a Wildberries supplier through the existing secure Seller onboarding flow. Use when the user asks to add, link, or authorize a supplier; never collect a raw Wildberries token in chat.
+description: Подключай поставщика Wildberries через защищённый сценарий Seller. Используй, когда пользователь просит добавить, связать или авторизовать поставщика; никогда не собирай исходный токен Wildberries в чате.
 ---
 
-# Connect supplier
+# Подключение поставщика
 
-Use `wb_connect_supplier` to start the configured browser handoff to the Seller service. The user enters the Wildberries personal API token on the authenticated Seller page, outside the agent conversation. The tool may return a short-lived handoff URL or status, but never a token.
+Используй `wb_connect_supplier`, чтобы открыть настроенный браузерный переход в сервис Seller.
+Пользователь вводит персональный API-токен Wildberries на авторизованной странице Seller, вне
+диалога с агентом. Инструмент может вернуть короткоживущий URL или статус, но никогда не возвращает токен.
 
-## Inputs
+## Входные данные
 
-- an optional supplier label or the user's requested account name;
-- confirmation that the user wants to open the Seller onboarding flow;
-- if the service asks for it, the user's authenticated Seller session.
+- необязательная метка поставщика или понятное пользователю имя аккаунта;
+- подтверждение, что пользователь хочет открыть сценарий подключения;
+- при необходимости — активная авторизация пользователя в Seller.
 
-After the handoff, tell the user to complete `Integration → Add supplier → Personal API token` and return to the agent to check connection status. Do not claim success until the service reports the supplier as connected.
+После перехода попроси завершить шаги `Интеграция → Добавить поставщика → Персональный API-токен`
+и вернуться в агент, чтобы проверить статус. Не называй поставщика подключённым, пока сервис это не подтвердил.
 
-## Safety
+## Безопасность
 
-- Never ask the user to paste a Wildberries token, cookie, or bearer token into chat or a tool argument.
-- Never log, echo, persist, or inspect credential values. Do not include them in examples, URLs, or error reports.
-- Treat the handoff URL as sensitive and short-lived; show only the minimum needed to open it.
-- If the flow fails, report a generic next step and safe status; do not relay provider-controlled response bodies.
+- Никогда не проси вставить токен Wildberries, cookie или bearer в чат или аргумент инструмента.
+- Не записывай, не повторяй и не сохраняй значения учётных данных; не помещай их в URL и отчёты.
+- Считай URL перехода короткоживущим и чувствительным; показывай только необходимое.
+- При ошибке сообщай общий безопасный следующий шаг, не пересказывай ответ провайдера.
 
-## Examples
+## Пример
 
-**User:** “Connect my Wildberries supplier.”
+**Запрос:** «Подключи моего поставщика Wildberries».
 
-**Agent:** Start the secure handoff, explain where to enter the token, and wait for the service's connection status.
+**Ответ:** Открой безопасный переход, объясни, где ввести токен, и дождись статуса подключения.
 
-**User:** “Here is my WB token: …”
+**Запрос:** «Вот мой токен WB: …».
 
-**Agent:** Do not process or repeat it; tell the user to revoke or rotate an exposed token and use the secure Seller page instead.
+**Ответ:** Не обрабатывай и не повторяй его; предложи отозвать или заменить раскрытый токен и использовать страницу Seller.

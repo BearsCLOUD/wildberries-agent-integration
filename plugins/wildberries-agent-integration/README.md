@@ -1,7 +1,8 @@
-# Wildberries Agent Integration
+# Интеграция агента Wildberries
 
-This directory is the canonical Codex/Claude plugin source. It bundles the MCP server, four agent skills, local stdio configuration, and a Streamable HTTP entrypoint.
+Канонический каталог плагина Codex/Claude: MCP-сервер, пять русскоязычных навыков, локальный
+stdio-конфиг и Streamable HTTP entrypoint.
 
-See the repository [README](../../README.md), [SPEC](../../SPEC.md), [security guidance](SECURITY.md),
-[privacy notice](PRIVACY.md), [terms](TERMS.md), and [support](SUPPORT.md) for installation, Seller
-gateway configuration, and the public listing handoff.
+См. [корневое описание](../../README.md), [SPEC](../../SPEC.md),
+[правила безопасности](SECURITY.md), [приватность](PRIVACY.md), [условия](TERMS.md) и
+[поддержку](SUPPORT.md).
