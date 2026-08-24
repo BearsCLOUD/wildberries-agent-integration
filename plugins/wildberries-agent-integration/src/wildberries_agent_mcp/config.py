@@ -11,7 +11,7 @@ class Settings:
     gateway_url: str = ""
     connect_url: str = ""
     timeout_seconds: float = 20.0
-    environment: str = "development"
+    environment: str = "production"
     static_access_token: str = ""
     host: str = "127.0.0.1"
     port: int = 8080
@@ -34,7 +34,7 @@ class Settings:
             gateway_url=getenv("SELLER_GATEWAY_URL", "").rstrip("/"),
             connect_url=getenv("SELLER_CONNECT_URL", "").strip(),
             timeout_seconds=timeout_seconds,
-            environment=getenv("APP_ENV", "development").lower().strip(),
+            environment=getenv("APP_ENV", "production").lower().strip(),
             static_access_token=getenv("SELLER_ACCESS_TOKEN", ""),
             host=getenv("HOST", "127.0.0.1"),
             port=port,
