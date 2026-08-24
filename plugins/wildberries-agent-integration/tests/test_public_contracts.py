@@ -1,22 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-import sys
-from pathlib import Path
 
 import pytest
 
-
-SRC = Path(__file__).resolve().parents[1] / "src"
-sys.path.insert(0, str(SRC))
-
-from wildberries_agent_mcp.calculations import (  # noqa: E402
+from wildberries_agent_mcp.calculations import (
     inventory_forecast,
     replenishment_math,
     unit_economics,
 )
-from wildberries_agent_mcp.config import Settings  # noqa: E402
-from wildberries_agent_mcp.server import _compact, build_server  # noqa: E402
+from wildberries_agent_mcp.config import Settings
+from wildberries_agent_mcp.server import _compact, build_server
 
 
 def test_unit_economics_returns_profit_margin_and_target_price() -> None:

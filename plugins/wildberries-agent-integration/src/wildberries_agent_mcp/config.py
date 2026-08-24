@@ -17,7 +17,7 @@ class Settings:
     port: int = 8080
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         timeout_raw = getenv("SELLER_GATEWAY_TIMEOUT_SECONDS", "20")
         try:
             timeout_seconds = max(1.0, min(float(timeout_raw), 120.0))
