@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- Made cost-price writes return a canonical status only after Seller echoes the requested `nm_id` and amount.
+- Added an explicit unknown-write outcome for empty, mismatched, timeout, or server-error responses.
+
 ## 0.1.5
 
 - Added focused tests proving cost-price confirmation, bearer fail-closed behavior, and payload redaction.

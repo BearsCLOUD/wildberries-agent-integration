@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from math import isfinite
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -348,6 +349,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         confirm: bool = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        normalized_cost_price = _as_float_value(cost_price)
         if not confirm:
             return {
                 "ok": False,
@@ -356,7 +358,15 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     "message": "Подтвердите запись себестоимости и повторите вызов с confirm=true.",
                 },
             }
-        if supplier_id_wb <= 0 or nm_id <= 0 or cost_price < 0:
+        if (
+            isinstance(supplier_id_wb, bool)
+            or isinstance(nm_id, bool)
+            or isinstance(cost_price, bool)
+            or supplier_id_wb <= 0
+            or nm_id <= 0
+            or normalized_cost_price is None
+            or normalized_cost_price < 0
+        ):
             return {
                 "ok": False,
                 "error": {
@@ -373,18 +383,31 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 path="/price_management/cost_price",
                 method="PUT",
                 params={"supplier_id_wb": supplier_id_wb},
-                json={"nm_id": nm_id, "cost_price": cost_price},
+                json={"nm_id": nm_id, "cost_price": normalized_cost_price},
                 request_id=_request_id(ctx),
             )
+            if not isinstance(data, dict):
+                return _unknown_write_status()
+            response_nm_id = _as_int_value(data.get("nm_id"))
+            response_cost_price = _as_float_value(data.get("cost_price"))
+            if response_nm_id != nm_id or response_cost_price is None:
+                return _unknown_write_status()
+            if abs(response_cost_price - normalized_cost_price) > 0.005:
+                return _unknown_write_status()
             return {
                 "ok": True,
+                "operation": "set_cost_price",
+                "status": "updated",
                 "supplier_id_wb": supplier_id_wb,
                 "nm_id": nm_id,
-                "cost_price": cost_price,
-                "data": _compact(data),
+                "cost_price": normalized_cost_price,
+                "confirmed": True,
             }
         except GatewayError as error:
-            return _gateway_error(error)
+            result = _gateway_error(error)
+            if error.status is None or error.status >= 500:
+                result["possibly_applied"] = True
+            return result
 
     @server.tool(
         name="wb_replenishment_math",
@@ -542,6 +565,17 @@ def _gateway_error(error: GatewayError) -> dict[str, Any]:
     return {"ok": False, "error": {"code": error.code, "status": error.status}}
 
 
+def _unknown_write_status() -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": {
+            "code": "write_status_unknown",
+            "message": "Seller не подтвердил результат записи себестоимости.",
+        },
+        "possibly_applied": True,
+    }
+
+
 def _is_identity_boundary_error(error: GatewayError) -> bool:
     return error.code.startswith("identity_bridge") or error.code == "gateway_https_required"
 
@@ -626,6 +660,14 @@ class _BearerPresenceVerifier:
 def _as_int_value(value: Any) -> int | None:
     try:
         return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float_value(value: Any) -> float | None:
+    try:
+        result = float(value) if value is not None else None
+        return result if result is not None and isfinite(result) else None
     except (TypeError, ValueError):
         return None
 

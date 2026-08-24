@@ -187,7 +187,7 @@ def test_cost_price_upload_requires_bearer_after_confirmation(monkeypatch) -> No
     assert calls == []
 
 
-def test_cost_price_upload_forwards_scoped_payload_and_compacts_result(monkeypatch) -> None:
+def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monkeypatch) -> None:
     calls = []
 
     async def fake_request(self, **kwargs):  # noqa: ARG001
@@ -230,10 +230,14 @@ def test_cost_price_upload_forwards_scoped_payload_and_compacts_result(monkeypat
             "request_id": None,
         }
     ]
-    assert result["data"] == {
+    assert result == {
+        "ok": True,
+        "operation": "set_cost_price",
+        "status": "updated",
+        "supplier_id_wb": 31460,
         "nm_id": 123456789,
         "cost_price": 320.0,
-        "nested": {"status": "saved"},
+        "confirmed": True,
     }
 
 
