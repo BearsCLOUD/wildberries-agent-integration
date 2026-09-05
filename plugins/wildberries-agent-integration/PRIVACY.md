@@ -1,5 +1,5 @@
-# Privacy notice
+# Уведомление о конфиденциальности — черновик
 
-This repository contains an adapter, not a hosted data store. A deployment may process the user's Seller bearer and seller analytics in transit to answer an MCP request. The adapter is designed not to persist bearer tokens or raw Wildberries tokens and not to include them in tool results.
+Репозиторий содержит адаптер к Seller. При обработке MCP-запроса размещённый сервис может передавать токен доступа Seller и данные аналитики продавца. Адаптер спроектирован так, чтобы не сохранять токены доступа и исходные токены Wildberries и не включать их в результаты инструментов.
 
-Before a hosted launch, the operator must publish the exact controller, retention, deletion, encryption, subprocessors, support, and jurisdiction details for that deployment. Do not use this draft as a substitute for the final legal notice.
+Для размещённого сервиса оператор должен опубликовать сведения об ответственном за обработку данных, сроках хранения, удалении, шифровании, привлечённых обработчиках, поддержке и применимой юрисдикции. Этот черновик не заменяет окончательное уведомление.
