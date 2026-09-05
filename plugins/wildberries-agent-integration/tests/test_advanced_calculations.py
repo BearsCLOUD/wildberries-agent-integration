@@ -55,6 +55,16 @@ def test_competitor_analysis_extracts_prices_and_reports_bad_rows() -> None:
     assert result["position"] == "within_corridor"
 
 
+def test_competitor_analysis_keeps_bounded_product_references() -> None:
+    result = competitor_analysis(competitor_rows=[
+        {"nm_id": nm_id, "sale_price": 100, "private_field": "not returned"}
+        for nm_id in range(1, 24)
+    ])
+    assert result["competitor_count"] == 23
+    assert result["competitors"] == [{"nm_id": n, "price": 100.0} for n in range(1, 21)]
+    assert result["competitors_omitted"] == 3
+
+
 def test_aggregate_sales_by_region_returns_totals_and_shares() -> None:
     result = aggregate_sales_by_region(
         rows=[
