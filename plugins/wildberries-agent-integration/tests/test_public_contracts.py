@@ -60,6 +60,16 @@ def test_replenishment_math_accounts_for_inbound_units() -> None:
     assert result["recommended_qty"] == 82
 
 
+def test_inventory_forecast_respects_shorter_requested_horizon() -> None:
+    result = inventory_forecast(
+        deficit_rows=[{"nm_id": 101, "qty": 0, "amount": 30, "deficit": 30}],
+        stock_rows=[], horizon_days=1, safety_days=0,
+    )
+    item = result["items"][0]
+    assert item["recommended_qty"] == 1
+    assert item["seller_deficit"] == 30
+
+
 def test_inventory_forecast_allocates_replenishment_to_warehouses() -> None:
     result = inventory_forecast(
         deficit_rows=[{"nm_id": 101, "qty": 2, "deficit": 5, "amount": 300}],

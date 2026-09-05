@@ -119,7 +119,7 @@ def inventory_forecast(
         sales_amount = _as_int(row.get("amount")) or 0
         daily_sales = sales_amount / 30 if sales_amount > 0 else 0.0
         target_stock = ceil(daily_sales * (horizon_days + safety_days))
-        recommended = max(deficit, target_stock - current_stock, 0)
+        recommended = max(target_stock - current_stock, 0) if sales_amount > 0 else deficit
         district_rows = row.get("deficit_districts") or []
         warehouses = _allocate(
             quantity=recommended,
@@ -134,6 +134,7 @@ def inventory_forecast(
                 "supplier_stock": supplier_stock,
                 "daily_sales_estimate": round(daily_sales, 2),
                 "target_stock": target_stock,
+                "seller_deficit": deficit,
                 "destinations": warehouses,
                 "district_demand": _compact_districts(district_rows),
                 "warnings": _warnings(
@@ -149,7 +150,7 @@ def inventory_forecast(
         "forecast_period_days": horizon_days,
         "safety_days": safety_days,
         "baseline": "Расчёт дефицита Seller основан на спросе за последние 30 дней.",
-        "method": "recommended = max(deficit, target_stock - current_stock, 0)",
+        "method": "При известных продажах: max(target_stock - current_stock, 0); иначе используется дефицит Seller.",
     }
 
 
