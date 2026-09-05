@@ -103,7 +103,7 @@ def test_inventory_forecast_uses_regional_demand_when_warehouse_stock_is_missing
     assert {row["destination_type"] for row in item["destinations"]} == {"district"}
     assert {row["warehouse"] for row in item["destinations"]} == {"Central", "Volga"}
     assert sum(row["quantity"] for row in item["destinations"]) == item["recommended_qty"]
-    assert "regional demand" in item["warnings"][0]
+    assert "региональному спросу" in item["warnings"][0]
 
 
 def test_public_tool_list_contains_analytics_and_calculators() -> None:
