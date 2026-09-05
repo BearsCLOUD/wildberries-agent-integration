@@ -97,6 +97,15 @@ WB-токен в терминал или чат не нужно.
 
 ### Claude
 
+Установите плагин с шестнадцатью навыками и публичным MCP в Claude Code:
+
+```text
+/plugin marketplace add BearsCLOUD/wildberries-agent-integration
+/plugin install wildberries-agent-integration@wildberries-agent
+```
+
+Это каталог BearsCLOUD, а не официальный каталог Anthropic.
+
 Для hosted Claude Connector укажите `https://wb.seller.bears.ru/mcp`; Seller OAuth
 регистрирует public client через DCR и PKCE S256.
 
