@@ -34,6 +34,7 @@ def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
     _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
         "supplier_id_wb": 1, "nm_id": 123,
         "date_from": "2026-08-01", "date_to": "2026-08-02",
+        "region": "Пермь",
         "weather_rows": [{"date": "2026-08-01", "region": "Пермь", "temperature_c": 20}],
     }))
     assert result["source"] == "seller_regional_daily_records"
@@ -42,6 +43,7 @@ def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
     assert result["metric"] == "sales_records"
     assert calls[0]["path"] == "/statistics/sales/by-region/daily"
     assert calls[0]["params"]["date_from"] == "2026-08-01"
+    assert calls[0]["params"]["region"] == "Пермь"
     assert calls[0]["params"]["supplier_id_wb"] == 1
 
 

@@ -742,7 +742,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 payload = await gateway.request(
                     authorization=auth,
                     path="/statistics/sales/by-region/daily",
-                    params={"supplier_id_wb": supplier_id_wb, "nm_id": nm_id, **period},
+                    params={
+                        "supplier_id_wb": supplier_id_wb,
+                        "nm_id": nm_id,
+                        **period,
+                        **({"region": region.strip()} if region and region.strip() else {}),
+                    },
                     request_id=_request_id(ctx),
                 )
             except GatewayError as error:
