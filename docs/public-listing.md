@@ -45,7 +45,13 @@ Claude: MCP-сервер и навыки для продавца Wildberries. О
 - Identity bridge contract: [docs/identity-bridge.md](identity-bridge.md)
 - Пакет подачи: [docs/openai-submission.md](openai-submission.md)
 
-Privacy и Terms сейчас описывают адаптер и требования к hosted deployment. Перед подачей нужно
+Действующие документы Seller: [политика обработки персональных данных](https://seller.bears.ru/privacy-policy)
+и [пользовательские условия](https://seller.bears.ru/contract). Публичный API Seller возвращает оба
+документа версии 1; в них указан оператор ООО «ИНТЕРНЕТ МЕДВЕДИ».
+Соглашение описывает платные тарифы; отдельные условия бесплатного агентского доступа и передачи
+аналитики подключённому AI-клиенту требуют сверки перед использованием этих ссылок в заявке.
+
+Privacy и Terms репозитория сейчас описывают адаптер и требования к hosted deployment. Перед подачей нужно
 опубликовать точные controller, retention, deletion, subprocessors, support и jurisdiction для
 фактического размещения.
 
