@@ -321,8 +321,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_competitor_analysis",
         title="Анализ конкурентов Wildberries",
         description=(
-            "Сравнивает товар продавца с явно переданными наблюдениями о конкурентах. "
-            "Не ищет конкурентов сам и не делает произвольных запросов к Wildberries; без исходных строк возвращает source_required."
+            "Находит похожие товары через существующий источник Seller и сравнивает цены. "
+            "Переданные competitor_rows имеют приоритет; в песочнице доступны только переданные синтетические строки."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -353,11 +353,25 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             if supplier_error:
                 return supplier_error
         rows = competitor_rows or []
+        source = "provided_rows"
+        if not rows and not sandbox_mode:
+            try:
+                rows = await gateway.request(
+                    authorization=auth,
+                    path="/open_methods/competitors",
+                    params={"nm_id": nm_id},
+                    request_id=_request_id(ctx),
+                )
+            except GatewayError as error:
+                return _gateway_error(error)
+            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                return _gateway_error(GatewayError("upstream_invalid_json"))
+            source = "seller_open_methods"
         if not rows:
             return _input_error_for_auth(
                 auth,
-                "source_required",
-                "Передайте наблюдения о конкурентах в competitor_rows; автоматический источник конкурентов не настроен.",
+                "source_required" if sandbox_mode else "competitor_data_unavailable",
+                "Источник не вернул данные для сравнения; можно передать наблюдения в competitor_rows.",
             )
         if len(rows) > 500:
             return _input_error_for_auth(
@@ -383,7 +397,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "ok": True,
                 "supplier_id_wb": supplier_id_wb,
                 "nm_id": nm_id,
-                "source": "provided_rows",
+                "source": source,
                 "data": _compact(analysis),
             }
         except ValueError as error:
