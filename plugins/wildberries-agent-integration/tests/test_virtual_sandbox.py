@@ -57,6 +57,20 @@ def test_weather_sandbox_does_not_fetch_sales(monkeypatch) -> None:
     assert result["ok"] is False
 
 
+def test_weather_rejects_incompatible_daily_response(monkeypatch) -> None:
+    async def request(self, **kwargs):  # noqa: ARG001
+        return {"unexpected": []}
+
+    monkeypatch.setattr(SellerGatewayClient, "request", request)
+    monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
+    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
+        "supplier_id_wb": 1, "nm_id": 123,
+        "date_from": "2026-08-01", "date_to": "2026-08-02", "weather_rows": [],
+    }))
+    assert result["ok"] is False
+    assert result["error"]["code"] == "invalid_regional_daily_response"
+
+
 def test_sandbox_token_is_accepted_without_identity_bridge(monkeypatch) -> None:
     calls = []
 
