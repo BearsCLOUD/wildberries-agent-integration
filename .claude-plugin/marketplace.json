@@ -1,0 +1,13 @@
+{
+  "name": "wildberries-agent",
+  "owner": {
+    "name": "BearsCLOUD"
+  },
+  "plugins": [
+    {
+      "name": "wildberries-agent-integration",
+      "source": "./plugins/wildberries-agent-integration",
+      "description": "Бесплатная аналитика Wildberries, SEO, себестоимость и прогноз пополнения через публичный MCP."
+    }
+  ]
+}
