@@ -154,7 +154,7 @@ regional data with a guess.
 
 ## Weather and sales
 
-`wb_sales_weather_impact` is a local calculation over supplied rows:
+`wb_sales_weather_impact` сопоставляет погодные наблюдения с продажами. Можно передать оба ряда:
 
 ```json
 {
@@ -167,6 +167,13 @@ regional data with a guess.
   ]
 }
 ```
+
+Если `sales_rows` отсутствует, укажите `supplier_id_wb`, `nm_id`, `date_from` и `date_to`.
+Инструмент прочитает до 1 000 строк `/statistics/tape/v2` из Seller и отфильтрует продажи по периоду.
+Результат содержит `source`, `coverage`, `sampling_caveat` и `seller_source_caveat`.
+Это ограниченная выборка: регион наследуется из заказа, лента упорядочена по дате заказа,
+а не продажи. Полнота периода не гарантируется, дни без строк не считаются нулевыми продажами.
+Погодные наблюдения по-прежнему передаются в `weather_rows`; песочница требует также синтетические `sales_rows`.
 
 Rows are joined by compatible date and region. The result reports `matched_observations`, `status`,
 `observation_count`, `correlation`, `direction`, `strength`, and a caveat. Fewer than four usable

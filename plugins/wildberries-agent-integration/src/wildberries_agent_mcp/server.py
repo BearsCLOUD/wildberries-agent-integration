@@ -772,6 +772,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "source": source,
             "coverage": coverage,
             "sampling_caveat": "Расчёт использует только совпавшие даты; отсутствующие дни не считаются нулевыми продажами.",
+            "seller_source_caveat": (
+                "Регион взят из связанного заказа. Лента отсортирована по дате заказа, "
+                "а период отфильтрован по дате продажи; полнота периода не гарантируется."
+                if source == "seller_statistics_tape_v2" else None
+            ),
             "data": _compact(result),
         }
 
