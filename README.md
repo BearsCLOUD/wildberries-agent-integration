@@ -100,12 +100,14 @@ WB-токен в терминал или чат не нужно.
 Для hosted Claude Connector укажите `https://wb.seller.bears.ru/mcp`; Seller OAuth
 регистрирует public client через DCR и PKCE S256.
 
-Для локального Claude Code подключите MCP-команду из корня репозитория:
+Для Claude Code подключите публичный MCP без локального Python-сервера:
 
 ```bash
-claude mcp add --transport stdio wildberries-agent -- \
-  python3 "$PWD/plugins/wildberries-agent-integration/scripts/run_mcp.py"
+claude mcp add --transport http wildberries-agent https://wb.seller.bears.ru/mcp
 ```
+
+Откройте `/mcp` в Claude Code и пройдите авторизацию Seller в браузере.
+Токен Wildberries вводится только в Seller, не в конфигурацию Claude.
 
 Манифест Claude находится в `plugins/wildberries-agent-integration/.claude-plugin/plugin.json`,
 а готовая конфигурация — в `plugins/wildberries-agent-integration/claude/mcp.json`.
