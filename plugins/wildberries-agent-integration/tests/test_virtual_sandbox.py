@@ -27,7 +27,7 @@ def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
 
     async def request(self, **kwargs):  # noqa: ARG001
         calls.append(kwargs)
-        return [{"nm_id": 123, "sale_date": "2026-08-01", "region_name": "Пермь"}]
+        return [{"nm_id": 123, "date": "2026-08-01", "region_name": "Пермь", "sales_records": 3}]
 
     monkeypatch.setattr(SellerGatewayClient, "request", request)
     monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
@@ -36,10 +36,12 @@ def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
         "date_from": "2026-08-01", "date_to": "2026-08-02",
         "weather_rows": [{"date": "2026-08-01", "region": "Пермь", "temperature_c": 20}],
     }))
-    assert result["source"] == "seller_statistics_tape_v2"
+    assert result["source"] == "seller_regional_daily_records"
     assert result["matched_observations"] == 1
-    assert result["coverage"] == "bounded_tape"
-    assert calls[0]["path"] == "/statistics/tape/v2"
+    assert result["coverage"] == "stored_records_in_period"
+    assert result["metric"] == "sales_records"
+    assert calls[0]["path"] == "/statistics/sales/by-region/daily"
+    assert calls[0]["params"]["date_from"] == "2026-08-01"
     assert calls[0]["params"]["supplier_id_wb"] == 1
 
 

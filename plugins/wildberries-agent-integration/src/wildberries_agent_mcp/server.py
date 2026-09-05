@@ -701,7 +701,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_sales_weather_impact",
         title="Связь погоды и продаж",
         description=(
-            "Сопоставляет погодные наблюдения с переданными продажами или ограниченной лентой Seller по supplier_id_wb, nm_id и периоду. "
+            "Сопоставляет погодные наблюдения с переданными продажами или дневным числом записей Sales из Seller по supplier_id_wb, nm_id и периоду. "
             "Оценивает корреляцию температуры с продажами по совпавшим датам и регионам. "
             "Корреляция не доказывает влияние погоды или причинно-следственную связь."
         ),
@@ -741,17 +741,21 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             try:
                 payload = await gateway.request(
                     authorization=auth,
-                    path="/statistics/tape/v2",
-                    params={"supplier_id_wb": supplier_id_wb, "nm_id": nm_id, "limit": 1000, "page": 0},
+                    path="/statistics/sales/by-region/daily",
+                    params={"supplier_id_wb": supplier_id_wb, "nm_id": nm_id, **period},
                     request_id=_request_id(ctx),
                 )
             except GatewayError as error:
                 return _gateway_error(error)
-            raw_rows = _payload_rows(payload)
-            source = "seller_statistics_tape_v2"
-            coverage = "truncated" if len(raw_rows) >= 1000 else "bounded_tape"
+            if not isinstance(payload, list) or any(
+                not isinstance(row, dict) or "sales_records" not in row
+                for row in payload
+            ):
+                return _input_error("invalid_regional_daily_response", "Seller вернул несовместимый дневной ряд.")
+            source = "seller_regional_daily_records"
+            coverage = "stored_records_in_period"
             sales_rows = [
-                row for row in _tape_sales_rows(raw_rows, period=period)
+                {**row, "sales": row["sales_records"]} for row in payload
                 if _as_int_value(row.get("nm_id")) == nm_id
             ]
         if len(sales_rows) > 5000 or len(weather_rows) > 5000:
@@ -771,11 +775,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "matched_observations": len(observations),
             "source": source,
             "coverage": coverage,
+            "metric": "sales_records" if source == "seller_regional_daily_records" else "provided_sales",
             "sampling_caveat": "Расчёт использует только совпавшие даты; отсутствующие дни не считаются нулевыми продажами.",
             "seller_source_caveat": (
-                "Регион взят из связанного заказа. Лента отсортирована по дате заказа, "
-                "а период отфильтрован по дате продажи; полнота периода не гарантируется."
-                if source == "seller_statistics_tape_v2" else None
+                "Число записей Sales включает возвраты и сторно и не равно чистым продажам. "
+                "Регион взят из записи Sales; полнота загрузки WB отдельно не проверяется."
+                if source == "seller_regional_daily_records" else None
             ),
             "data": _compact(result),
         }

@@ -169,10 +169,11 @@ regional data with a guess.
 ```
 
 Если `sales_rows` отсутствует, укажите `supplier_id_wb`, `nm_id`, `date_from` и `date_to`.
-Инструмент прочитает до 1 000 строк `/statistics/tape/v2` из Seller и отфильтрует продажи по периоду.
-Результат содержит `source`, `coverage`, `sampling_caveat` и `seller_source_caveat`.
-Это ограниченная выборка: регион наследуется из заказа, лента упорядочена по дате заказа,
-а не продажи. Полнота периода не гарантируется, дни без строк не считаются нулевыми продажами.
+Инструмент прочитает `/statistics/sales/by-region/daily` из Seller за указанный период.
+Результат содержит `source`, `coverage`, `metric`, `sampling_caveat` и `seller_source_caveat`.
+Метрика `sales_records` — число записей Sales, включая возвраты и сторно, а не чистые продажи.
+Регион берётся из Sales. Полнота исходной загрузки WB отдельно не проверяется;
+дни без строк не считаются нулевыми продажами. За один расчёт допускается до 5 000 дневных региональных строк.
 Погодные наблюдения по-прежнему передаются в `weather_rows`; песочница требует также синтетические `sales_rows`.
 
 Rows are joined by compatible date and region. The result reports `matched_observations`, `status`,
