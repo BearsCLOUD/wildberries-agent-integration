@@ -83,6 +83,19 @@ def test_inventory_forecast_keeps_size_and_excludes_other_size_stock() -> None:
     assert [d["warehouse"] for d in item["destinations"]] == ["Matching size"]
 
 
+def test_inventory_forecast_combines_rows_of_same_warehouse() -> None:
+    result = inventory_forecast(
+        deficit_rows=[{"nm_id": 101, "amount": 60, "qty": 0}],
+        stock_rows=[
+            {"nmId": 101, "warehouseName": "A", "quantity": 5},
+            {"nmId": 101, "warehouseName": "A", "quantity": 5},
+            {"nmId": 101, "warehouseName": "B", "quantity": 10},
+        ], horizon_days=1, safety_days=0,
+    )
+    destinations = result["items"][0]["destinations"]
+    assert [(d["warehouse"], d["quantity"]) for d in destinations] == [("A", 1), ("B", 1)]
+
+
 def test_inventory_forecast_allocates_replenishment_to_warehouses() -> None:
     result = inventory_forecast(
         deficit_rows=[{"nm_id": 101, "qty": 2, "deficit": 5, "amount": 300}],
