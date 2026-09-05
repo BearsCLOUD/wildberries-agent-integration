@@ -221,6 +221,31 @@ def test_cost_price_upload_requires_bearer_for_explicit_input(monkeypatch) -> No
     assert calls == []
 
 
+@pytest.mark.parametrize("provided", [False, True])
+def test_competitor_source_uses_seller_unless_rows_provided(monkeypatch, provided) -> None:
+    calls = []
+
+    async def fake_request(self, **kwargs):  # noqa: ARG001
+        calls.append(kwargs)
+        return [{"nm_id": 102, "sale_price": 500}]
+
+    monkeypatch.setattr(SellerGatewayClient, "request", fake_request)
+    server = build_server(Settings(
+        environment="test", gateway_url="http://seller.example",
+        static_access_token="synthetic-agent-token",
+    ))
+    arguments = {"supplier_id_wb": 31460, "nm_id": 101}
+    if provided:
+        arguments["competitor_rows"] = [{"sale_price": 600}]
+    _, result = asyncio.run(server.call_tool("wb_competitor_analysis", arguments))
+    assert result["ok"] is True
+    assert result["source"] == ("provided_rows" if provided else "seller_open_methods")
+    assert len(calls) == (0 if provided else 1)
+    if calls:
+        assert calls[0]["path"] == "/open_methods/competitors"
+        assert calls[0]["params"] == {"nm_id": 101}
+
+
 def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monkeypatch) -> None:
     calls = []
 
