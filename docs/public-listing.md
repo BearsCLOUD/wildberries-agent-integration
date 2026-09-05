@@ -1,9 +1,9 @@
 # Публичное описание и подготовка каталога
 
 Статус: исходники плагина подготовлены, но заявка в каталог OpenAI не создана и не отправлена.
-В официальном MCP Registry опубликована версия `0.1.25` со статусом `active` (проверено 5 сентября 2026).
+В официальном MCP Registry опубликована версия `0.1.26` со статусом `active` (проверено 5 сентября 2026).
 Имя: `io.github.BearsCLOUD/wildberries-agent-integration`; подключение: `https://wb.seller.bears.ru/mcp`.
-[Публичная запись Registry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.BearsCLOUD%2Fwildberries-agent-integration/versions/0.1.25).
+[Публичная запись Registry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.BearsCLOUD%2Fwildberries-agent-integration/versions/0.1.26).
 Эта публикация не означает одобрение в каталогах ChatGPT или Claude.
 Публичный MCP host, deployment подготовленного Seller OAuth bridge, виртуальная reviewer sandbox и
 домен проверки должны быть подтверждены отдельно. Поля для копирования, тесты и список блокеров собраны в
