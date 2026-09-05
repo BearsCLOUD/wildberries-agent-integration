@@ -1,8 +1,12 @@
 # Публикация MCP
 
-Compose запускает MCP-сервер по Streamable HTTP. Перед подключением ChatGPT или Claude сервер
-нужно разместить рядом с сервисом аналитики, закрыть HTTPS и подключить Seller как OAuth 2.1/PKCE
-identity provider. `seller.bears.ru` остаётся браузерной точкой регистрации и привязки поставщика.
+Пользователи подключаются к готовому публичному MCP: `https://wb.seller.bears.ru/mcp`.
+Собственный сервер, Docker и ключ OpenAI для этого не нужны. Настройки клиентов приведены
+в [основном README](../README.md).
+
+Этот документ предназначен для сопровождающих сервер. Compose запускает MCP по Streamable HTTP;
+в production используются HTTPS и существующий Seller OAuth/PKCE.
+`seller.bears.ru` остаётся браузерной точкой регистрации и привязки поставщика.
 Seller OAuth discovery публикует DCR для public clients ChatGPT и Claude; token exchange использует
 authorization code и PKCE S256 без client secret.
 
@@ -13,7 +17,9 @@ authorization code и PKCE S256 без client secret.
 - `SELLER_CONNECT_URL=https://.../integration`
 - `MCP_PUBLIC_URL=https://...`
 - `MCP_AUTH_ISSUER=https://passport.bears.ru`
-- `OPENAI_APPS_CHALLENGE=<token из OpenAI Platform>`
+
+Для проверки домена при подаче в OpenAI отдельно задаётся `OPENAI_APPS_CHALLENGE` со значением,
+выданным площадкой. Для работы MCP в Codex и Claude эта переменная не требуется.
 
 Bridge принимает MCP bearer и `X-Identity-Audience: seller-gateway`, затем возвращает
 короткоживущий Seller bearer вошедшего пользователя. Он обязан выдавать бесплатный agent
@@ -53,5 +59,6 @@ curl -fsS https://your-host.example/.well-known/oauth-protected-resource/mcp
 curl -fsS https://your-host.example/.well-known/openai-apps-challenge
 ```
 
-Репозиторий не заявляет, что публичный host уже запущен. DNS, TLS, OAuth-регистрация, доступ
-ревьюера и production-секреты остаются отдельными операциями владельца deployment.
+Публичный сервер работает по адресу `https://wb.seller.bears.ru/mcp`.
+Успешный `/healthz` подтверждает доступность процесса, но не проверяет доступ к кабинету продавца:
+после изменения deployment проверяйте также авторизованный сценарий Seller.
