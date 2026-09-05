@@ -142,10 +142,12 @@ explicit `rows` or an `nm_id`:
 }
 ```
 
-When `rows` are omitted, the tool reads only the fixed Seller route
-`GET /statistics/tape/v2?supplier_id_wb&nm_id&limit&page`, then filters the bounded result to the
-requested period. `/statistics/report/combined` does not provide a region field and is not used as
-a product-by-region source. With neither `rows` nor `nm_id`, the tool returns `source_required`.
+Без `rows` инструмент читает `GET /statistics/sales/by-region/daily` с поставщиком, товаром и
+явным диапазоном дат. Источник `seller_regional_daily_records` возвращает в региональных итогах
+`sales_records`, `sales_records_value`, `records_share_percent` и `records_value_share_percent`.
+Это записи Sales, включая возвраты и сторно, а не чистые продажи и выручка. `coverage` обозначает
+сохранённые записи за период, но не подтверждает полноту загрузки WB. Для ручных `rows` прежние
+поля `sales` и `revenue` сохранены. Без `rows` и `nm_id` возвращается `source_required`.
 
 The response reports `source`, `period`, `nm_id`, `regions`, `totals`, `source_row_count`, and
 `skipped_row_count`. Region means the geographic field actually present in a row. The tool does not
