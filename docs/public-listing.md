@@ -96,9 +96,9 @@ claude plugin validate plugins/wildberries-agent-integration
 
 Claude Connector и ChatGPT требуют опубликованный HTTPS Streamable HTTP endpoint с корректной
 аутентификацией. Claude Desktop/Code использует
-`plugins/wildberries-agent-integration/claude/mcp.json`. Codex-пакет не распространяет локальный
-MCP server: до выдачи OpenAI зарегистрированного remote app ID он устанавливает только шестнадцать
-русскоязычных навыков и не создаёт ложный или дублирующий credential/backend contour.
+`plugins/wildberries-agent-integration/claude/mcp.json`; Codex — тот же публичный endpoint через
+`plugins/wildberries-agent-integration/.mcp.json`. Обе конфигурации используют существующий Seller
+OAuth и не создают локального credential/backend contour.
 
 ## Границы и безопасность
 

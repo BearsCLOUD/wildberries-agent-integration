@@ -37,9 +37,14 @@ jobs:
               assert data['version'] == package_version
           json.loads(Path('alpic.json').read_text())
           codex = json.loads(Path('.codex-plugin/plugin.json').read_text())
-          assert 'mcpServers' not in codex
+          assert codex['mcpServers'] == './.mcp.json'
           assert 'apps' not in codex
-          assert not Path('.mcp.json').exists()
+          codex_mcp = json.loads(Path('.mcp.json').read_text())
+          assert codex_mcp['mcpServers']['wildberries-agent'] == {
+              'type': 'http',
+              'url': 'https://wb.seller.bears.ru/mcp',
+              'oauth_resource': 'https://wb.seller.bears.ru/mcp',
+          }
           claude = json.loads(Path('.claude-plugin/plugin.json').read_text())
           assert claude['mcpServers'] == './claude/mcp.json'
           json.loads(Path('claude/mcp.json').read_text())

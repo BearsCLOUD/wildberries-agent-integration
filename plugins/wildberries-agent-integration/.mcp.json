@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "wildberries-agent": {
+      "type": "http",
+      "url": "https://wb.seller.bears.ru/mcp",
+      "oauth_resource": "https://wb.seller.bears.ru/mcp"
+    }
+  }
+}
