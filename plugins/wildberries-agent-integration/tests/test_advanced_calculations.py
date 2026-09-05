@@ -18,7 +18,7 @@ def test_competitive_price_analysis_builds_interquartile_corridor() -> None:
     assert result["price_corridor"] == {
         "low": 90.0,
         "high": 110.0,
-        "method": "25th–75th percentile of valid positive competitor prices",
+        "method": "25–75-й перцентили корректных положительных цен конкурентов",
     }
     assert result["position"] == "above_corridor"
     assert result["difference_to_median_percent"] == 20.0

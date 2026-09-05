@@ -257,7 +257,7 @@ def competitive_price_analysis(
         "price_corridor": {
             "low": round(low, 2),
             "high": round(high, 2),
-            "method": "25th–75th percentile of valid positive competitor prices",
+            "method": "25–75-й перцентили корректных положительных цен конкурентов",
         },
         "position": position,
         "difference_to_median_percent": round((seller_price - middle) / middle * 100, 2)
@@ -270,9 +270,9 @@ def competitive_price_analysis(
         "target_price": round(target_price, 2),
         "target_position": target_position,
         "caveat": (
-            "The corridor describes the supplied sample, not demand or profitability; "
-            "the optional cost floor excludes commissions, logistics, tax, and other fees. "
-            "Validate all costs, stock, and competitor comparability before changing a price."
+            "Коридор описывает выборку цен, а не спрос или прибыльность. "
+            "Нижняя граница по себестоимости не учитывает комиссии, логистику, налоги и другие расходы. "
+            "Перед изменением цены проверьте все расходы, остатки и сопоставимость конкурентов."
         ),
     }
 
