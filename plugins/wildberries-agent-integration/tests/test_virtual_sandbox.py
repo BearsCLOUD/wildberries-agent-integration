@@ -107,6 +107,11 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
         assert result["synthetic"] is True
         assert result["identity"] == "reviewer-sandbox"
         assert result["supplier_id_wb"] == SANDBOX_SUPPLIER_ID
+        if name == "wb_inventory_forecast":
+            destination = result["data"]["items"][0]["destinations"][0]
+            assert destination["warehouse"] != "[truncated]"
+            assert isinstance(destination["quantity"], int)
+            assert destination["quantity"] > 0
 
     assert calls == []
 

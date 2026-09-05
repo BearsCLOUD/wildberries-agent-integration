@@ -1458,7 +1458,7 @@ def _as_float_value(value: Any) -> float | None:
 
 
 def _compact(value: Any, *, depth: int = 0) -> Any:
-    if depth > 4:
+    if depth > 6:
         return "[truncated]"
     if isinstance(value, dict):
         result: dict[str, Any] = {}

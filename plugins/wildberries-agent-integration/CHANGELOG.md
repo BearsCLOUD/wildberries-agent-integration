@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.16
+
+- Исправлено обрезание названий складов и количества товара в направлениях прогноза пополнения.
+- Добавлена проверка сохранности направлений поставки в виртуальной песочнице.
+
 ## 0.1.15
 
 - Added a fixed virtual reviewer sandbox with public synthetic identity, token, and supplier values.
