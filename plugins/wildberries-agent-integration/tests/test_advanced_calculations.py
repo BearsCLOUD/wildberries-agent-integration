@@ -18,7 +18,7 @@ def test_competitive_price_analysis_builds_interquartile_corridor() -> None:
     assert result["price_corridor"] == {
         "low": 90.0,
         "high": 110.0,
-        "method": "25th–75th percentile of valid positive competitor prices",
+        "method": "25–75-й перцентили корректных положительных цен конкурентов",
     }
     assert result["position"] == "above_corridor"
     assert result["difference_to_median_percent"] == 20.0
@@ -53,6 +53,16 @@ def test_competitor_analysis_extracts_prices_and_reports_bad_rows() -> None:
     assert result["source_row_count"] == 4
     assert result["malformed_row_count"] == 2
     assert result["position"] == "within_corridor"
+
+
+def test_competitor_analysis_keeps_bounded_product_references() -> None:
+    result = competitor_analysis(competitor_rows=[
+        {"nm_id": nm_id, "sale_price": 100, "private_field": "not returned"}
+        for nm_id in range(1, 24)
+    ])
+    assert result["competitor_count"] == 23
+    assert result["competitors"] == [{"nm_id": n, "price": 100.0} for n in range(1, 21)]
+    assert result["competitors_omitted"] == 3
 
 
 def test_aggregate_sales_by_region_returns_totals_and_shares() -> None:

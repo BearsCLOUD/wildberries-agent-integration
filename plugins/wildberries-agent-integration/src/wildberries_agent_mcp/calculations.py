@@ -257,7 +257,7 @@ def competitive_price_analysis(
         "price_corridor": {
             "low": round(low, 2),
             "high": round(high, 2),
-            "method": "25th–75th percentile of valid positive competitor prices",
+            "method": "25–75-й перцентили корректных положительных цен конкурентов",
         },
         "position": position,
         "difference_to_median_percent": round((seller_price - middle) / middle * 100, 2)
@@ -270,9 +270,9 @@ def competitive_price_analysis(
         "target_price": round(target_price, 2),
         "target_position": target_position,
         "caveat": (
-            "The corridor describes the supplied sample, not demand or profitability; "
-            "the optional cost floor excludes commissions, logistics, tax, and other fees. "
-            "Validate all costs, stock, and competitor comparability before changing a price."
+            "Коридор описывает выборку цен, а не спрос или прибыльность. "
+            "Нижняя граница по себестоимости не учитывает комиссии, логистику, налоги и другие расходы. "
+            "Перед изменением цены проверьте все расходы, остатки и сопоставимость конкурентов."
         ),
     }
 
@@ -297,6 +297,7 @@ def competitor_analysis(
     )
     prices: list[float] = []
     malformed_rows = 0
+    matched_products: list[dict[str, int | float]] = []
     for row in competitor_rows:
         if not isinstance(row, dict):
             malformed_rows += 1
@@ -310,6 +311,9 @@ def competitor_analysis(
             malformed_rows += 1
             continue
         prices.append(price)
+        nm_id = row.get("nm_id")
+        if isinstance(nm_id, int) and not isinstance(nm_id, bool) and nm_id > 0:
+            matched_products.append({"nm_id": nm_id, "price": price})
 
     result = competitive_price_analysis(
         seller_price=seller_price,
@@ -320,6 +324,8 @@ def competitor_analysis(
     )
     result["source_row_count"] = len(competitor_rows)
     result["malformed_row_count"] = malformed_rows
+    result["competitors"] = matched_products[:20]
+    result["competitors_omitted"] = max(0, len(matched_products) - 20)
     return result
 
 
