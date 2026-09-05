@@ -18,8 +18,18 @@ from wildberries_agent_mcp.server import (
     _compact,
     _safe_handoff_url,
     _secure_base_url,
+    _stock_sizes_from_cards,
     build_server,
 )
+
+
+def test_stock_size_mapping_matches_both_product_and_variant() -> None:
+    rows = [{"nmId": 101, "chrtId": 1}, {"nmId": 102, "chrtId": 1}]
+    cards = [{"nm_id": 101, "sizes_table": {"values": [{"chrt_id": 1, "tech_size": "M"}]}}]
+    result = _stock_sizes_from_cards(rows, cards)
+    assert result[0]["size"] == "M"
+    assert "size" not in result[1]
+    assert "size" not in rows[0]
 
 
 def test_unit_economics_returns_profit_margin_and_target_price() -> None:

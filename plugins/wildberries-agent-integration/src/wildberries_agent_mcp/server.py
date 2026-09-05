@@ -1076,6 +1076,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                         if error.code == "not_found"
                         else error.code
                     )
+            size_status = "not_requested"
+            if stock_rows and any(row.get("size") for row in deficit_rows if isinstance(row, dict)):
+                try:
+                    cards = await gateway.request(
+                        authorization=auth, path="/open_methods/get_cards_new_detail",
+                        method="POST", json={"nm_ids": list(dict.fromkeys(selected_ids))},
+                        request_id=_request_id(ctx),
+                    )
+                    stock_rows = _stock_sizes_from_cards(stock_rows, cards)
+                    size_status = "source_checked"
+                except GatewayError:
+                    size_status = "size_mapping_unavailable"
             forecast = inventory_forecast(
                 deficit_rows=deficit_rows[:100],
                 stock_rows=stock_rows,
@@ -1086,6 +1098,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "ok": True,
                 "supplier_id_wb": supplier_id_wb,
                 "warehouse_stock_status": stock_status,
+                "warehouse_size_status": size_status,
                 "data": _compact(forecast),
             }
         except GatewayError as error:
@@ -1094,6 +1107,30 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             return {"ok": False, "error": {"code": "invalid_forecast_input", "message": str(error)}}
 
     return server
+
+
+def _stock_sizes_from_cards(rows: list[dict[str, Any]], cards: Any) -> list[dict[str, Any]]:
+    sizes: dict[tuple[int, int], str] = {}
+    for card in cards if isinstance(cards, list) else []:
+        if not isinstance(card, dict):
+            continue
+        nm_id = _as_int_value(card.get("nm_id"))
+        table = card.get("sizes_table")
+        values = table.get("values", []) if isinstance(table, dict) else []
+        for value in values if isinstance(values, list) else []:
+            if not isinstance(value, dict):
+                continue
+            chrt_id = _as_int_value(value.get("chrt_id"))
+            size = value.get("tech_size")
+            if nm_id and chrt_id and isinstance(size, str) and size.strip():
+                sizes[(nm_id, chrt_id)] = size.strip()
+    result = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        key = (_as_int_value(row.get("nmId")), _as_int_value(row.get("chrtId")))
+        result.append({**row, "size": sizes[key]} if key in sizes else row)
+    return result
 
 
 def _valid_positive_id(value: Any) -> bool:
