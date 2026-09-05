@@ -47,6 +47,25 @@ def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
     assert calls[0]["params"]["supplier_id_wb"] == 1
 
 
+def test_regional_report_labels_sales_records_without_net_sales_claim(monkeypatch) -> None:
+    async def request(self, **kwargs):  # noqa: ARG001
+        assert kwargs["path"] == "/statistics/sales/by-region/daily"
+        assert kwargs["params"]["date_to"] == "2026-08-02"
+        return [{"nm_id": 123, "date": "2026-08-01", "region_name": "Пермь",
+                 "sales_records": 3, "sales_records_value": 90}]
+
+    monkeypatch.setattr(SellerGatewayClient, "request", request)
+    monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
+    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_by_region", {
+        "supplier_id_wb": 1, "nm_id": 123,
+        "date_from": "2026-08-01", "date_to": "2026-08-02",
+    }))
+    assert result["data"]["totals"]["sales_records"] == 3
+    assert result["data"]["totals"]["sales_records_value"] == 90
+    assert "sales" not in result["data"]["totals"]
+    assert "revenue" not in result["data"]["regions"][0]
+
+
 def test_weather_sandbox_does_not_fetch_sales(monkeypatch) -> None:
     async def unexpected_request(self, **kwargs):  # noqa: ARG001
         raise AssertionError("sandbox must not fetch sales")

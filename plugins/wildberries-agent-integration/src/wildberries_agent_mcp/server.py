@@ -594,7 +594,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         title="Продажи Wildberries по регионам",
         description=(
             "Группирует продажи текущего поставщика по регионам за ограниченный период. "
-            "Использует явно переданные строки либо для указанного nm_id только ленту Seller /statistics/tape/v2; не выполняет произвольные запросы."
+            "Использует переданные строки либо дневные записи Sales из Seller для nm_id. Записи включают возвраты и сторно, это не чистые продажи."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -653,27 +653,33 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     "ok": False,
                     "error": {
                         "code": "source_required",
-                        "message": "Передайте региональные строки в rows или укажите nm_id для чтения ограниченной ленты Seller.",
+                        "message": "Передайте региональные строки в rows или укажите nm_id для чтения дневного отчёта Seller.",
                     },
                 }
-            source = "seller_statistics_tape_v2"
+            source = "seller_regional_daily_records"
             try:
                 payload = await gateway.request(
                     authorization=auth,
-                    path="/statistics/tape/v2",
+                    path="/statistics/sales/by-region/daily",
                     params={
                         "supplier_id_wb": supplier_id_wb,
                         "nm_id": nm_id,
-                        "limit": 1000,
-                        "page": 0,
+                        **period,
                     },
                     request_id=_request_id(ctx),
                 )
             except GatewayError as error:
                 return _gateway_error(error)
-            raw_rows = _payload_rows(payload)
-            coverage = "truncated" if len(raw_rows) >= 1000 else "complete"
-            selected_rows = _tape_sales_rows(raw_rows, period=period)
+            if not isinstance(payload, list) or any(
+                not isinstance(row, dict) or "sales_records" not in row
+                or "sales_records_value" not in row for row in payload
+            ):
+                return _input_error("invalid_regional_daily_response", "Seller вернул несовместимый дневной ряд.")
+            coverage = "stored_records_in_period"
+            selected_rows = [
+                {**row, "sales": row["sales_records"], "revenue": row["sales_records_value"]}
+                for row in payload
+            ]
         if len(selected_rows) > 5000:
             return _input_error(
                 "too_many_sales_rows",
@@ -687,6 +693,23 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             ]
         selected_rows = _filter_sales_period(selected_rows, period=period)
         result = aggregate_sales_by_region(rows=selected_rows)
+        if source == "seller_regional_daily_records":
+            record_names = {
+                "sales": "sales_records", "revenue": "sales_records_value",
+                "sales_share_percent": "records_share_percent",
+                "revenue_share_percent": "records_value_share_percent",
+            }
+            result["regions"] = [
+                {record_names.get(key, key): value for key, value in row.items()}
+                for row in result["regions"]
+            ]
+            result["totals"] = {
+                record_names.get(key, key): value for key, value in result["totals"].items()
+            }
+            result["assumption"] = (
+                "Записи Sales включают возвраты и сторно; суммы finished_price не равны чистой выручке. "
+                "Регион взят из Sales. Полнота исходной загрузки WB отдельно не проверена."
+            )
         return {
             "ok": True,
             "supplier_id_wb": supplier_id_wb,
