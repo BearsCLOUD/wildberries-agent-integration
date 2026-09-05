@@ -121,14 +121,22 @@ def inventory_forecast(
         target_stock = ceil(daily_sales * (horizon_days + safety_days))
         recommended = max(target_stock - current_stock, 0) if sales_amount > 0 else deficit
         district_rows = row.get("deficit_districts") or []
+        size = str(row.get("size") or "").strip()
+        matching_stocks = stock_by_nm.get(nm_id, [])
+        if size:
+            matching_stocks = [
+                stock for stock in matching_stocks
+                if str(stock.get("size", stock.get("techSize", ""))).strip() == size
+            ]
         warehouses = _allocate(
             quantity=recommended,
-            rows=stock_by_nm.get(nm_id, []),
+            rows=matching_stocks,
             district_rows=district_rows,
         )
         items.append(
             {
                 "nm_id": nm_id,
+                "size": size or None,
                 "recommended_qty": recommended,
                 "current_stock": current_stock,
                 "supplier_stock": supplier_stock,
@@ -139,7 +147,7 @@ def inventory_forecast(
                 "district_demand": _compact_districts(district_rows),
                 "warnings": _warnings(
                     recommended=recommended,
-                    has_warehouse_data=bool(stock_by_nm.get(nm_id)),
+                    has_warehouse_data=bool(matching_stocks),
                     has_district_data=bool(district_rows),
                 ),
             }

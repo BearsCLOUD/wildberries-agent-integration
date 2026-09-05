@@ -70,6 +70,19 @@ def test_inventory_forecast_respects_shorter_requested_horizon() -> None:
     assert item["seller_deficit"] == 30
 
 
+def test_inventory_forecast_keeps_size_and_excludes_other_size_stock() -> None:
+    result = inventory_forecast(
+        deficit_rows=[{"nm_id": 101, "size": "M", "amount": 30, "qty": 0}],
+        stock_rows=[
+            {"nmId": 101, "size": "S", "warehouseName": "Wrong size", "quantity": 10},
+            {"nmId": 101, "size": "M", "warehouseName": "Matching size", "quantity": 0},
+        ], horizon_days=1, safety_days=0,
+    )
+    item = result["items"][0]
+    assert item["size"] == "M"
+    assert [d["warehouse"] for d in item["destinations"]] == ["Matching size"]
+
+
 def test_inventory_forecast_allocates_replenishment_to_warehouses() -> None:
     result = inventory_forecast(
         deficit_rows=[{"nm_id": 101, "qty": 2, "deficit": 5, "amount": 300}],
