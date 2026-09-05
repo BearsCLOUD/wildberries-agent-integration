@@ -148,7 +148,7 @@ def inventory_forecast(
         "items": items,
         "forecast_period_days": horizon_days,
         "safety_days": safety_days,
-        "baseline": "Seller deficit endpoint uses a recent 30-day demand baseline.",
+        "baseline": "Расчёт дефицита Seller основан на спросе за последние 30 дней.",
         "method": "recommended = max(deficit, target_stock - current_stock, 0)",
     }
 
@@ -173,8 +173,8 @@ def replenishment_math(
         "recommended_qty": recommended,
         "formula": "max(0, ceil(daily_sales × (target_days + safety_days)) − current_stock − inbound_qty)",
         "assumptions": [
-            "Demand is treated as a stable daily average.",
-            "Round up to whole units.",
+            "Спрос считается постоянным и равным средним дневным продажам.",
+            "Количество округляется вверх до целых единиц.",
         ],
     }
 
@@ -595,7 +595,7 @@ def _allocate(
                 "destination_type": "warehouse",
                 "current_stock": qty,
                 "quantity": units,
-                "reason": "balanced toward lower current stock",
+                "reason": "Больше товара направляется на склады с меньшим текущим остатком.",
             }
             for (name, qty), units in zip(grouped, allocated, strict=True)
             if units > 0
@@ -623,7 +623,7 @@ def _allocate(
                 "destination_type": "district",
                 "current_stock": current_stock,
                 "quantity": units,
-                "reason": "allocated by regional demand; warehouse stock unavailable",
+                "reason": "Распределено по региональному спросу; остатки по складам недоступны.",
             }
             for (name, current_stock, _), units in zip(
                 districts, allocated, strict=True
@@ -635,7 +635,7 @@ def _allocate(
             "warehouse": "unassigned",
             "destination_type": "unknown",
             "quantity": quantity,
-            "reason": "warehouse and regional demand data unavailable",
+            "reason": "Данные по складам и региональному спросу недоступны.",
         }
     ]
 
@@ -676,18 +676,18 @@ def _warnings(
     warnings = []
     if not has_warehouse_data and recommended > 0 and has_district_data:
         warnings.append(
-            "Warehouse stock data is unavailable; destinations use regional demand as a heuristic."
+            "Остатки по складам недоступны; направления приблизительно оценены по региональному спросу."
         )
     elif not has_warehouse_data and recommended > 0:
         warnings.append(
-            "Warehouse stock data is unavailable; destination is unassigned."
+            "Остатки по складам недоступны; направление поставки не определено."
         )
     if not has_district_data:
         warnings.append(
-            "Regional demand was unavailable; use the allocation as a coverage heuristic."
+            "Региональный спрос недоступен; распределение приблизительно выравнивает обеспеченность остатками."
         )
     if recommended == 0:
-        warnings.append("No replenishment is recommended from the returned baseline.")
+        warnings.append("По полученным исходным данным пополнение не требуется.")
     return warnings
 
 
