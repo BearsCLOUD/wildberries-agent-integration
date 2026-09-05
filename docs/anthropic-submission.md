@@ -1,6 +1,10 @@
 # Пакет подачи в каталог Claude
 
-Статус: черновик до публикации production MCP и проверки виртуальной reviewer sandbox.
+Статус: заявка ещё не отправлена. Публичный MCP 0.1.17 работает; через внешний HTTPS
+проверены виртуальная reviewer sandbox, калькулятор и прогноз с направлениями поставки.
+Проверены DCR и перенаправление на регистрацию Seller с PKCE; полный вход и подключение
+поставщика через Claude Connector ещё не подтверждены. Перед подачей также требуется
+сверить документы размещённого сервиса, указанные в [материалах каталога](public-listing.md).
 
 Официальные требования: [Authentication](https://claude.com/docs/connectors/building/authentication),
 [Review criteria](https://claude.com/docs/connectors/building/review-criteria) и
