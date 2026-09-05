@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.BearsCLOUD/wildberries-agent-integration",
+  "description": "Бесплатная русскоязычная аналитика Wildberries, SEO, калькуляторы и прогноз пополнения через MCP.",
+  "repository": {
+    "url": "https://github.com/BearsCLOUD/wildberries-agent-integration",
+    "source": "github"
+  },
+  "version": "0.1.17",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://wb.seller.bears.ru/mcp"
+    }
+  ]
+}
