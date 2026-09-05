@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wildberries-agent-integration"
-version = "0.1.16"
+version = "0.1.17"
 description = "Русскоязычная MCP-интеграция Wildberries: аналитика, отзывы, конкуренты, SEO, карточки, фото, регионы, погода, юнит-экономика и пополнение."
 readme = "README.md"
 requires-python = ">=3.11"
