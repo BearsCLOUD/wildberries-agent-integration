@@ -701,7 +701,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_sales_weather_impact",
         title="Связь погоды и продаж",
         description=(
-            "Сопоставляет переданные ряды продаж и погоды по дате и региону и оценивает корреляцию температуры с продажами. "
+            "Сопоставляет погодные наблюдения с переданными продажами или ограниченной лентой Seller по supplier_id_wb, nm_id и периоду. "
+            "Оценивает корреляцию температуры с продажами по совпавшим датам и регионам. "
             "Корреляция не доказывает влияние погоды или причинно-следственную связь."
         ),
         annotations=ToolAnnotations(
@@ -712,10 +713,47 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_sales_weather_impact(
-        sales_rows: list[dict[str, Any]],
         weather_rows: list[dict[str, Any]],
+        sales_rows: list[dict[str, Any]] | None = None,
         region: str | None = None,
+        supplier_id_wb: int | None = None,
+        nm_id: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
+        source = "provided_rows"
+        coverage = "provided_rows"
+        if sales_rows is None:
+            auth = _auth_header(ctx, settings)
+            if not _valid_positive_id(supplier_id_wb) or not _valid_positive_id(nm_id):
+                return _input_error("source_required", "Передайте sales_rows или supplier_id_wb и nm_id.")
+            if not date_from or not date_to:
+                return _input_error("invalid_period", "Для чтения Seller укажите date_from и date_to.")
+            try:
+                period = _validate_period(date_from, date_to)
+            except ValueError as error:
+                return _input_error("invalid_period", str(error))
+            if auth is None:
+                return _auth_error()
+            if is_sandbox_authorization(auth):
+                return sandbox_error("source_required", "В песочнице передайте синтетические sales_rows.")
+            try:
+                payload = await gateway.request(
+                    authorization=auth,
+                    path="/statistics/tape/v2",
+                    params={"supplier_id_wb": supplier_id_wb, "nm_id": nm_id, "limit": 1000, "page": 0},
+                    request_id=_request_id(ctx),
+                )
+            except GatewayError as error:
+                return _gateway_error(error)
+            raw_rows = _payload_rows(payload)
+            source = "seller_statistics_tape_v2"
+            coverage = "truncated" if len(raw_rows) >= 1000 else "bounded_tape"
+            sales_rows = [
+                row for row in _tape_sales_rows(raw_rows, period=period)
+                if _as_int_value(row.get("nm_id")) == nm_id
+            ]
         if len(sales_rows) > 5000 or len(weather_rows) > 5000:
             return _input_error(
                 "too_many_weather_rows",
@@ -731,6 +769,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "ok": True,
             "region": region,
             "matched_observations": len(observations),
+            "source": source,
+            "coverage": coverage,
+            "sampling_caveat": "Расчёт использует только совпавшие даты; отсутствующие дни не считаются нулевыми продажами.",
             "data": _compact(result),
         }
 
