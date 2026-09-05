@@ -27,19 +27,23 @@ def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
 
     async def request(self, **kwargs):  # noqa: ARG001
         calls.append(kwargs)
-        return [{"nm_id": 123, "sale_date": "2026-08-01", "region_name": "Пермь"}]
+        return [{"nm_id": 123, "date": "2026-08-01", "region_name": "Пермь", "sales_records": 3}]
 
     monkeypatch.setattr(SellerGatewayClient, "request", request)
     monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
     _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
         "supplier_id_wb": 1, "nm_id": 123,
         "date_from": "2026-08-01", "date_to": "2026-08-02",
+        "region": "Пермь",
         "weather_rows": [{"date": "2026-08-01", "region": "Пермь", "temperature_c": 20}],
     }))
-    assert result["source"] == "seller_statistics_tape_v2"
+    assert result["source"] == "seller_regional_daily_records"
     assert result["matched_observations"] == 1
-    assert result["coverage"] == "bounded_tape"
-    assert calls[0]["path"] == "/statistics/tape/v2"
+    assert result["coverage"] == "stored_records_in_period"
+    assert result["metric"] == "sales_records"
+    assert calls[0]["path"] == "/statistics/sales/by-region/daily"
+    assert calls[0]["params"]["date_from"] == "2026-08-01"
+    assert calls[0]["params"]["region"] == "Пермь"
     assert calls[0]["params"]["supplier_id_wb"] == 1
 
 
@@ -53,6 +57,20 @@ def test_weather_sandbox_does_not_fetch_sales(monkeypatch) -> None:
         "date_from": "2026-08-01", "date_to": "2026-08-02", "weather_rows": [],
     }))
     assert result["ok"] is False
+
+
+def test_weather_rejects_incompatible_daily_response(monkeypatch) -> None:
+    async def request(self, **kwargs):  # noqa: ARG001
+        return {"unexpected": []}
+
+    monkeypatch.setattr(SellerGatewayClient, "request", request)
+    monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
+    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
+        "supplier_id_wb": 1, "nm_id": 123,
+        "date_from": "2026-08-01", "date_to": "2026-08-02", "weather_rows": [],
+    }))
+    assert result["ok"] is False
+    assert result["error"]["code"] == "invalid_regional_daily_response"
 
 
 def test_sandbox_token_is_accepted_without_identity_bridge(monkeypatch) -> None:
