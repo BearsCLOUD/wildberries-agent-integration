@@ -594,13 +594,14 @@ def _allocate(
 ) -> list[dict[str, Any]]:
     if quantity <= 0:
         return []
-    grouped: list[tuple[str, int]] = []
+    stock_totals: dict[str, int] = {}
     for row in rows:
         name = str(
             row.get("warehouseName", row.get("warehouse_name", "Unknown warehouse"))
         )
         qty = _as_int(row.get("quantity", row.get("qty"))) or 0
-        grouped.append((name, max(0, qty)))
+        stock_totals[name] = stock_totals.get(name, 0) + max(0, qty)
+    grouped = list(stock_totals.items())
     if grouped:
         weights = [1 / (qty + 1) for _, qty in grouped]
         allocated = _weighted_units(quantity, weights)
