@@ -32,7 +32,6 @@ def test_production_gateway_call_forwards_opaque_agent_bearer_directly(
         Settings(
             environment="production",
             gateway_url="https://gateway.example.test",
-            identity_bridge_url="https://passport.example.test/mcp/identity/exchange",
         )
     )
 

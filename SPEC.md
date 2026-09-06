@@ -17,8 +17,8 @@ Give Wildberries sellers a small set of agent-first actions inside Codex, Claude
 - forecast how many units to replenish and which warehouse should receive them.
 
 The agent tier is free: no plugin license, seat fee, per-tool charge, or paid Seller plan is required
-for the published agent tools. A production identity bridge grants `wildberries-agent-free` only
-after binding the opaque agent token to the authenticated Seller subject and MCP resource. Reviewed
+for the published agent tools. Seller Gateway grants `wildberries-agent-free` only after validating
+the opaque agent token, its exact MCP resource, and the link to an active Seller subject. Reviewed
 finance and price reads accept that server-validated entitlement; ordinary non-agent Seller routes
 keep their existing subscription rules.
 
@@ -95,10 +95,10 @@ not publish or mutate a Wildberries card without a separate explicit user action
 - Product-by-region live enrichment uses only `/statistics/tape/v2` with authenticated
   `supplier_id_wb`, required `nm_id`, bounded paging, and local period filtering.
   `/statistics/report/combined` has no region field and is not a regional-sales source.
-- The MCP server uses the configured Seller gateway URL. In production/staging it exchanges the caller's MCP bearer at `SELLER_IDENTITY_BRIDGE_URL` and forwards only the short-lived Seller bearer; in local dev/test it may use a direct bearer or development-only static token. It never accepts a raw Wildberries token as a tool argument.
+- The MCP server uses the configured Seller Gateway URL. In production/staging it forwards the caller's opaque MCP bearer only to fixed `/agent/...` routes; in local dev/test it may use an explicitly configured static token. It never accepts a Seller bearer or raw Wildberries token as a tool argument.
 - Default transport is Streamable HTTP at `/mcp`. Local stdio is provided for development.
 - Hosted deployments expose OAuth protected-resource metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` when `MCP_PUBLIC_URL` and `MCP_AUTH_ISSUER` are configured.
-- Every published MCP tool advertises the `wildberries-agent-free` OAuth security scheme in its tool metadata so ChatGPT can start account linking before invoking it.
+- Fifteen protected MCP tools advertise the `wildberries-agent-free` OAuth security scheme; the two pure calculators advertise `noauth`.
 - The public MCP is deployed beside the analytics server. `seller.bears.ru` remains the browser
   registration, sign-in, and supplier-connection surface; it is not presented as the analytics MCP host.
 
@@ -116,7 +116,7 @@ hard-coded or claimed here.
 ## Authentication and safety
 
 - Production HTTP deployments must use HTTPS and OAuth 2.1/PKCE or an equivalent short-lived user bearer flow.
-- Production/staging deployments fail closed unless `SELLER_IDENTITY_BRIDGE_URL` is configured. The bridge validates the MCP audience and returns a short-lived Seller bearer; the agent bearer is never forwarded to Seller APIs.
+- Production/staging deployments require an HTTPS Seller Gateway URL. Gateway validates the agent bearer, resource, Seller link, and supplier ownership before dispatching a fixed agent route.
 - The implementation keeps the auth boundary explicit: authorization values are sent only in headers and are never logged.
 - Supplier linking is an out-of-band browser action. A deployment can set `SELLER_CONNECT_URL` to the existing authenticated integration page.
 - Read-only tools are the default. The only write in the first release is the scoped cost-price update; price and discount mutation remain out of scope.

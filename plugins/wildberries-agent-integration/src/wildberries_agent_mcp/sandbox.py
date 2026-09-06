@@ -1,7 +1,7 @@
 """Deterministic, fully virtual reviewer data for the public MCP.
 
 The reviewer bearer is intentionally public and non-secret.  It is a fixed
-demo mode, not a Seller credential: no identity bridge, gateway, database, or
+demo mode, not a Seller credential: no Seller Gateway, database, or
 Wildberries request may be reached while it is active.
 """
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.28
+
+- Send opaque agent bearers directly to fixed Seller Gateway `/agent/...` routes and remove the obsolete identity-exchange configuration.
+- Refresh production, legal, and OpenAI submission documentation with the verified 17-tool runtime contract.
+
 ## 0.1.27
 
 - Добавлены анонимный OAuth-контур с отдельной привязкой Seller и 90-дневной ротацией refresh token.

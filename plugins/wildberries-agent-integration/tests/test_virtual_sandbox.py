@@ -17,7 +17,6 @@ def _sandbox_server():
             environment="production",
             static_access_token=SANDBOX_ACCESS_TOKEN,
             gateway_url="https://seller.example",
-            identity_bridge_url="https://identity.example",
         )
     )
 
@@ -154,12 +153,12 @@ def test_weather_rejects_incompatible_daily_response(monkeypatch) -> None:
     assert result["error"]["code"] == "invalid_regional_daily_response"
 
 
-def test_sandbox_token_is_accepted_without_identity_bridge(monkeypatch) -> None:
+def test_sandbox_token_is_accepted_without_gateway(monkeypatch) -> None:
     calls = []
 
     async def unexpected_verify(self, authorization):  # noqa: ARG001
         calls.append(authorization)
-        raise AssertionError("sandbox token must not use the identity bridge")
+        raise AssertionError("sandbox token must not use Seller Gateway")
 
     monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", unexpected_verify)
     access = asyncio.run(
@@ -187,7 +186,7 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
 
     async def unexpected_verify(self, authorization):  # noqa: ARG001
         calls.append(authorization)
-        raise AssertionError("sandbox path must not call identity bridge")
+        raise AssertionError("sandbox path must not call Seller Gateway")
 
     monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
     monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", unexpected_verify)

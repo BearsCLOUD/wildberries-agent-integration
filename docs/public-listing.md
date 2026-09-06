@@ -1,12 +1,13 @@
 # Публичное описание и подготовка каталога
 
-Статус: исходники плагина подготовлены, но заявка в каталог OpenAI не создана и не отправлена.
+Статус: production MCP, OAuth и reviewer sandbox функционально проверены; заявка в каталог OpenAI
+ещё не отправлена.
 В официальном MCP Registry опубликована версия `0.1.26` со статусом `active` (проверено 5 сентября 2026).
 Имя: `io.github.BearsCLOUD/wildberries-agent-integration`; подключение: `https://wb.seller.bears.ru/mcp`.
 [Публичная запись Registry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.BearsCLOUD%2Fwildberries-agent-integration/versions/0.1.26).
 Эта публикация не означает одобрение в каталогах ChatGPT или Claude.
-Публичный MCP host, deployment подготовленного Seller OAuth bridge, виртуальная reviewer sandbox и
-домен проверки должны быть подтверждены отдельно. Поля для копирования, тесты и список блокеров собраны в
+Доменная проверка и черновик карточки OpenAI остаются отдельными шагами. Поля для копирования,
+тесты и список действий собраны в
 [пакете подачи OpenAI](openai-submission.md).
 
 ## Позиционирование
@@ -42,22 +43,17 @@ Claude: MCP-сервер и навыки для продавца Wildberries. О
 
 - Репозиторий: <https://github.com/BearsCLOUD/wildberries-agent-integration>
 - Поддержка: <https://github.com/BearsCLOUD/wildberries-agent-integration/issues>
-- Privacy draft: <https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/PRIVACY.md>
-- Terms draft: <https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/TERMS.md>
+- Privacy: <https://wb.seller.bears.ru/privacy>
+- Terms: <https://wb.seller.bears.ru/terms>
+- Support: <https://wb.seller.bears.ru/support>
 - Браузерная регистрация Seller: <https://seller.bears.ru/authentication/registration>
 - MCP contract: [docs/mcp-contract.md](mcp-contract.md)
-- Identity bridge contract: [docs/identity-bridge.md](identity-bridge.md)
+- Agent identity boundary: [docs/identity-bridge.md](identity-bridge.md)
 - Пакет подачи: [docs/openai-submission.md](openai-submission.md)
 
-Действующие документы Seller: [политика обработки персональных данных](https://seller.bears.ru/privacy-policy)
-и [пользовательские условия](https://seller.bears.ru/contract). Публичный API Seller возвращает оба
-документа версии 1; в них указан оператор ООО «ИНТЕРНЕТ МЕДВЕДИ».
-Соглашение описывает платные тарифы; отдельные условия бесплатного агентского доступа и передачи
-аналитики подключённому AI-клиенту требуют сверки перед использованием этих ссылок в заявке.
-
-Privacy и Terms репозитория сейчас описывают адаптер и требования к hosted deployment. Перед подачей нужно
-опубликовать точные controller, retention, deletion, subprocessors, support и jurisdiction для
-фактического размещения.
+Публичные документы MCP указывают оператора ООО «ОУПЕН ГРУПП», правила хранения OAuth-данных,
+удаление, поддержку и применимое право. Общие документы Seller остаются отдельными условиями
+основного кабинета и не подменяют legal URL приложения.
 
 ## OpenAI / ChatGPT
 
@@ -119,7 +115,7 @@ OAuth и не создают локального credential/backend contour.
 
 ## Принятие перед подачей
 
-Подача возможна только после появления production MCP URL, deployment OAuth/identity bridge, виртуальной
-reviewer sandbox, challenge token, публичного URL готового логотипа, deployment-specific legal URLs,
-verified developer/business identity, выбранных стран и повторного Scan Tools. Полный список и
+Перед отправкой нужны challenge token, подтверждённый домен, verified developer/business identity,
+выбранные страны и повторный Scan Tools. Production MCP, OAuth, legal URLs, логотип и виртуальная
+reviewer sandbox уже доступны. Полный список и
 ровно 5+3 тестов находятся в [пакете подачи](openai-submission.md).

@@ -1,66 +1,45 @@
-# Identity bridge contract
+# Agent identity boundary
 
-The plugin intentionally does not implement a user database or a Wildberries-token store. Seller
-Gateway owns the OAuth 2.1/PKCE source contract at `https://passport.bears.ru` and exposes the
-identity bridge at `/mcp/identity/exchange` once that Gateway version is deployed.
+The plugin intentionally has no user database, Seller session store, or Wildberries-token store.
+Seller Gateway owns OAuth 2.1 with DCR and PKCE S256 at `https://passport.bears.ru`.
 
-## Exchange
+## Agent bearer
 
-The MCP server sends:
+The MCP server forwards the caller's opaque bearer only in the `Authorization` header to fixed
+`/agent/...` routes on Seller Gateway. It never exchanges that bearer for, accepts, or returns a
+Seller bearer. Agent access records contain the agent subject, exact MCP resource, scopes, and a
+bounded TTL; they contain neither a Seller bearer nor a Wildberries credential.
 
-```http
-POST /mcp/identity/exchange
-Authorization: Bearer <agent-access-token>
-X-Identity-Audience: seller-gateway
-X-Request-ID: <opaque-request-id>
-```
+Before each protected operation, Seller Gateway validates:
 
-The bridge resolves the opaque, resource-bound agent token to an existing Seller session and returns
-the corresponding Seller bearer. Agent access records use hashed lookup keys and a bounded Redis
-TTL; they never contain a Wildberries credential. The agent surface is free for every connected Seller user: the bridge
-must not require a paid plan, seat, or per-call charge. Seller still enforces identity and supplier
-ownership before returning data or accepting a write:
+- the opaque agent token and exact resource `https://wb.seller.bears.ru/mcp`;
+- scope `wildberries-agent-free`;
+- the optional link from the agent subject to an active Seller subject;
+- ownership of the requested `supplier_id_wb`;
+- that the requested route and operation are on the fixed agent allowlist.
 
-```json
-{
-  "access_token": "<short-lived-seller-bearer>",
-  "token_type": "Bearer",
-  "expires_in": 300,
-  "scope": "wildberries-agent-free",
-  "entitlements": ["wildberries-agent-free"]
-}
-```
+The agent surface is free for every connected Seller user. Ordinary non-agent Seller routes retain
+their existing subscription rules.
 
-The plugin also accepts `seller_access_token` for compatibility with an existing bridge. It sends
-only the returned Seller bearer to Seller Gateway; the opaque agent token is never forwarded downstream.
+## Seller linking
 
-## Бесплатный доступ
+A new OAuth client can receive an anonymous agent token before a Seller account is linked.
+`wb_connect_supplier`, `wb_connection_status`, and `wb_connect_telegram` then return a safe browser
+or Telegram next step. A one-time link code is carried in the browser URL fragment, consumed after
+Seller login or registration, and never appears in server request logs. The user enters the
+Wildberries personal token only in Seller. MCP arguments, results, and storage never contain it.
 
-`wildberries-agent-free` — единый OAuth scope и техническая отметка бесплатного агентского
-доступа, а не платная подписка. Seller Gateway должен получать её из доверенного bridge-токена
-или проверенного server-side introspection и не требовать тариф, seat или оплату за вызов.
-Отметка остаётся привязанной к текущему пользователю и поставщику. Запись ограничена
-себестоимостью и отдельной постановкой обновления аналитики в очередь; произвольного API-прокси
-или WB write-path нет.
+## Reviewer sandbox
 
-Finance and price enrichment may remain unavailable in older Gateway deployments; the plugin
-returns a warning instead of hiding the limitation. Once the entitlement is implemented for those
-read routes, no plugin change is required.
-
-## Supplier onboarding
-
-The bridge and Seller service keep the existing ownership flow. `wb_connect_supplier` can open
-`https://seller.bears.ru/authentication/registration` without an existing MCP bearer for a new
-user, and opens `/wb-oauth/authorize` or the Seller integration page for an authenticated user.
-The user enters the Wildberries personal token there. The MCP request, bridge response, logs, and
-tool result must never contain that token. SMS/email and legal consent that Seller requires remain
-inside the browser flow; the agent does not add a second confirmation screen.
+The reviewer contour uses the public synthetic token `wb-agent-sandbox-token-v1` and supplier
+`900000001`. It is fully virtual: no Seller Gateway, database, or Wildberries request is made and no
+external state is changed, including the confirmed cost-price example.
 
 ## Failure behavior
 
-- missing or invalid bridge configuration: fail closed with a stable error code;
-- expired/rejected agent bearer: return an OAuth challenge or `identity_bridge_rejected`;
-- bridge/upstream outage: return a generic availability error without provider response text;
-- no Wildberries-token persistence in the bridge, gateway logs, MCP process, or repository;
-- the short-lived Seller bearer inside the OAuth agent-session record expires with its Redis TTL and
-  is never logged or returned except by the authenticated internal exchange.
+- missing or invalid bearer: return an OAuth challenge with the protected-resource metadata URL;
+- unlinked Seller identity: return a safe linking next step without Seller data;
+- unavailable Gateway: return a generic availability error without provider response text;
+- revoked or inactive Seller account: deny the operation;
+- never persist or log authorization headers, Seller sessions, Wildberries tokens, or provider
+  response bodies.

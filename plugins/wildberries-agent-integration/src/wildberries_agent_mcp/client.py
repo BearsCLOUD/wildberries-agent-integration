@@ -51,11 +51,11 @@ class SellerGatewayClient:
             raise GatewayError("auth_required", status=401)
         if not _safe_service_url(
             self.settings.gateway_url,
-            require_https=self.settings.requires_identity_bridge,
+            require_https=self.settings.requires_https,
         ):
             raise GatewayError(
                 "gateway_https_required"
-                if self.settings.requires_identity_bridge
+                if self.settings.requires_https
                 else "gateway_url_invalid"
             )
 

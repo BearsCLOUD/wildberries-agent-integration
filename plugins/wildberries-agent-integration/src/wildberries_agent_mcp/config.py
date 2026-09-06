@@ -9,7 +9,6 @@ class Settings:
     """Environment-backed settings with a fail-closed production default."""
 
     gateway_url: str = ""
-    identity_bridge_url: str = ""
     public_url: str = ""
     auth_issuer: str = ""
     openai_apps_challenge: str = ""
@@ -36,7 +35,6 @@ class Settings:
 
         return cls(
             gateway_url=getenv("SELLER_GATEWAY_URL", "").rstrip("/"),
-            identity_bridge_url=getenv("SELLER_IDENTITY_BRIDGE_URL", "").rstrip("/"),
             public_url=getenv("MCP_PUBLIC_URL", "").rstrip("/"),
             auth_issuer=getenv("MCP_AUTH_ISSUER", "").rstrip("/"),
             openai_apps_challenge=getenv("OPENAI_APPS_CHALLENGE", "").strip(),
@@ -56,5 +54,5 @@ class Settings:
         return self.environment in {"development", "dev", "test"}
 
     @property
-    def requires_identity_bridge(self) -> bool:
+    def requires_https(self) -> bool:
         return self.environment in {"production", "prod", "staging"}

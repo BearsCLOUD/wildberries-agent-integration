@@ -523,7 +523,7 @@ def test_analytics_refresh_rejects_invalid_period_before_gateway(
         )
 
 
-def test_public_bearer_is_verified_by_seller_identity_bridge(monkeypatch) -> None:
+def test_public_bearer_is_verified_by_seller_gateway(monkeypatch) -> None:
     calls = []
 
     async def fake_verify(self, authorization):  # noqa: ARG001
@@ -542,7 +542,7 @@ def test_public_bearer_is_verified_by_seller_identity_bridge(monkeypatch) -> Non
 
 def test_rejected_public_bearer_does_not_receive_mcp_access(monkeypatch) -> None:
     async def reject(self, authorization):  # noqa: ARG001
-        raise GatewayError("identity_bridge_rejected", status=401)
+        raise GatewayError("agent_token_rejected", status=401)
 
     monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", reject)
     settings = Settings(environment="production")
@@ -608,7 +608,7 @@ def test_credential_fields_are_removed_from_nested_results() -> None:
     }
 
 
-def test_production_does_not_require_identity_bridge_before_gateway_call(
+def test_production_requires_https_gateway_before_call(
     monkeypatch,
 ) -> None:
     client = SellerGatewayClient(

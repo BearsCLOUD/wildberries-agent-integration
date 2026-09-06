@@ -166,8 +166,7 @@ npx alpic deploy \
 ```mermaid
 flowchart LR
     A[Codex / Claude] --> B[Публичный MCP]
-    B --> C[Identity bridge]
-    B --> D[Seller Gateway]
+    B -->|opaque OAuth bearer| D[Seller Gateway]
     D --> E[Seller analytics]
     D --> F[Хранимая WB credential]
     U[Продавец] -->|токен только в браузере| S[seller.bears.ru]
@@ -202,11 +201,10 @@ flowchart LR
 - SEO — прозрачная эвристика контента, а не гарантия позиции, CTR или конверсии.
 - Внешние данные (конкуренты, погода) требуют совместимого API и соответствующей лицензии.
 
-Исходник и локальный MCP опубликованы; companion Seller source содержит OAuth 2.1/PKCE и
-reviewed WB API contracts. Production endpoint рядом с сервером аналитики и карточка
-в публичном каталоге ChatGPT/OpenAI требуют deployment, HTTPS/OAuth-реквизитов и проверки
-рецензентом. Пока такой функциональный deployment не подтверждён, проект не заявляет
-`runtime_accepted` и не выдаёт адрес-заглушку за работающий MCP.
+Публичный MCP `https://wb.seller.bears.ru/mcp`, Seller OAuth 2.1/PKCE, reviewer sandbox и
+reviewed WB API contracts развёрнуты и функционально проверены. Публикация в каталоге
+ChatGPT/OpenAI остаётся отдельным этапом: для неё нужны проверка домена, заполненный черновик
+карточки и отправка на ревью оператором.
 
 Порядок подачи описан в [`docs/public-listing.md`](docs/public-listing.md), контракт MCP — в
 [`docs/mcp-contract.md`](docs/mcp-contract.md), архитектурные ограничения — в [`SPEC.md`](SPEC.md).
@@ -214,7 +212,7 @@ reviewed WB API contracts. Production endpoint рядом с сервером а
 ## Документация
 
 - [Ландшафт конкурентов и источники](docs/competitive-landscape.md)
-- [Identity bridge](docs/identity-bridge.md)
+- [Граница агентской идентификации](docs/identity-bridge.md)
 - [Доступ и mock-данные для ревьюера](docs/reviewer-access.md)
 - [Подача в каталог OpenAI](docs/openai-submission.md)
 - [Подача в каталог Claude](docs/anthropic-submission.md)

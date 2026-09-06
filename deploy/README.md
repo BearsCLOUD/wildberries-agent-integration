@@ -13,7 +13,6 @@ authorization code и PKCE S256 без client secret.
 Обязательные production-переменные:
 
 - `SELLER_GATEWAY_URL=https://passport.bears.ru`
-- `SELLER_IDENTITY_BRIDGE_URL=https://passport.bears.ru/mcp/identity/exchange`
 - `SELLER_CONNECT_URL=https://.../integration`
 - `MCP_PUBLIC_URL=https://...`
 - `MCP_AUTH_ISSUER=https://passport.bears.ru`
@@ -21,10 +20,10 @@ authorization code и PKCE S256 без client secret.
 Для проверки домена при подаче в OpenAI отдельно задаётся `OPENAI_APPS_CHALLENGE` со значением,
 выданным площадкой. Для работы MCP в Codex и Claude эта переменная не требуется.
 
-Bridge принимает MCP bearer и `X-Identity-Audience: seller-gateway`, затем возвращает
-короткоживущий Seller bearer вошедшего пользователя. Он обязан выдавать бесплатный agent
-entitlement и сохранять проверку принадлежности пользователя и поставщика. Не задавайте
-`SELLER_ACCESS_TOKEN` в публичном deployment. Контракт ответа описан в
+MCP передаёт opaque agent bearer только в фиксированные `/agent/...` маршруты Seller Gateway.
+Gateway проверяет ресурс, scope, связь с Seller-пользователем и принадлежность поставщика, не
+возвращая и не сохраняя Seller bearer в MCP. Не задавайте `SELLER_ACCESS_TOKEN` в публичном
+deployment. Контракт описан в
 [identity-bridge.md](../docs/identity-bridge.md).
 
 ## Production Zot
@@ -45,7 +44,7 @@ npx alpic deploy \
 ```
 
 Перед первым production deploy добавьте перечисленные выше переменные в environment Alpic.
-Alpic не является identity provider: OAuth/identity bridge остаётся в Seller. После deployment
+Alpic не является identity provider: OAuth и проверка agent bearer остаются в Seller. После deployment
 проверьте `/mcp`, OAuth metadata, отклонение неверного bearer и полный authenticated tool call.
 Для OpenAI domain verification отдельно убедитесь, что выбранный hosting действительно отдаёт
 `/.well-known/openai-apps-challenge`; наличие MCP endpoint само по себе этого не гарантирует.
