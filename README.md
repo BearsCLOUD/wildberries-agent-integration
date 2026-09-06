@@ -25,7 +25,7 @@
 
 ## В двух словах
 
-- 16 русскоязычных навыков и 15 MCP-инструментов.
+- 16 русскоязычных навыков и 17 MCP-инструментов.
 - Безопасное подключение поставщика через `seller.bears.ru`: исходный WB-токен не вводится в чат.
 - Отдельный калькулятор пополнения и прогноз «сколько и куда везти».
 - Конкурентный анализ, ценовой коридор, продажи по доступному региональному полю, погодные гипотезы и SEO-оценка.
@@ -59,7 +59,9 @@
 
 | Инструмент | Назначение |
 | --- | --- |
-| `wb_connect_supplier` | Открыть защищённый сценарий подключения поставщика |
+| `wb_connect_supplier` | Открыть одноразовый защищённый сценарий привязки Seller |
+| `wb_connection_status` | Проверить привязку Seller и список поставщиков |
+| `wb_connect_telegram` | Открыть существующий сценарий подключения Telegram |
 | `wb_list_suppliers` | Показать поставщиков текущего пользователя |
 | `wb_analytics_summary` | Сводка продаж, заказов, финансов, цен и остатков |
 | `wb_warehouse_stock` | Остатки по товару и складам |
@@ -70,7 +72,7 @@
 | `wb_sales_by_region` | Продажи по доступному региональному полю |
 | `wb_sales_weather_impact` | Корреляция продаж и погодных рядов |
 | `wb_seo_analytics` | Проверка контента карточки и поисковых ключей |
-| `wb_upload_cost_price` | Запись указанной себестоимости в Seller |
+| `wb_upload_cost_price` | Подтверждаемая перезапись указанной себестоимости в Seller |
 | `wb_unit_economics` | Маржа, безубыточность и сценарии |
 | `wb_replenishment_math` | Быстрый расчёт количества пополнения |
 | `wb_inventory_forecast` | Прогноз количества и направлений пополнения |
@@ -88,8 +90,8 @@ codex plugin add wildberries-agent-integration@wildberries-agent
 
 Каталог плагина описан в `.agents/plugins/marketplace.json`, манифест — в
 `plugins/wildberries-agent-integration/.codex-plugin/plugin.json`. Плагин сам объявляет
-public MCP и при первом использовании динамически регистрирует OAuth client, открывая
-Seller onboarding; вводить WB-токен в терминал или чат не нужно.
+public MCP и динамически регистрирует OAuth client. OAuth создаёт анонимную агентскую
+сессию; Seller подключается затем по одноразовой ссылке. Вводить WB-токен в терминал или чат не нужно.
 
 ### Claude
 
@@ -142,8 +144,7 @@ wildberries-agent-mcp --transport streamable-http --host 127.0.0.1 --port 8080
 ```
 
 Локальный сервер требует доступный Seller Gateway для авторизованных аналитических вызовов.
-В production дополнительно нужны HTTPS и deployment подготовленного OAuth 2.1/PKCE identity bridge:
-`SELLER_IDENTITY_BRIDGE_URL`, `MCP_PUBLIC_URL` и `MCP_AUTH_ISSUER`.
+В production дополнительно нужны HTTPS, `SELLER_GATEWAY_URL`, `MCP_PUBLIC_URL` и `MCP_AUTH_ISSUER`. MCP передаёт Gateway только непрозрачный агентский bearer и никогда не получает Seller bearer.
 
 ### Alpic
 

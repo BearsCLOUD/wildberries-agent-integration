@@ -18,16 +18,12 @@ class FakeAsyncClient:
     async def __aexit__(self, *_args):
         return None
 
-    async def post(self, url, *, headers):
-        self.requests.append({"kind": "post", "url": url, "headers": headers})
-        return httpx.Response(200, json={"access_token": "seller-session"})
-
     async def request(self, **kwargs):
         self.requests.append({"kind": "request", **kwargs})
         return httpx.Response(200, json={"ok": True})
 
 
-def test_production_gateway_call_propagates_opaque_agent_bearer_for_validation(
+def test_production_gateway_call_forwards_opaque_agent_bearer_directly(
     monkeypatch,
 ) -> None:
     FakeAsyncClient.requests = []
@@ -43,13 +39,10 @@ def test_production_gateway_call_propagates_opaque_agent_bearer_for_validation(
     result = asyncio.run(
         client.request(
             authorization="Bearer opaque-agent-token",
-            path="/financial_report/dashboard/v2",
+            path="/agent/financial_report/dashboard/v2",
         )
     )
 
     assert result == {"ok": True}
     gateway_call = FakeAsyncClient.requests[-1]
-    assert gateway_call["headers"] == {
-        "Authorization": "Bearer seller-session",
-        "X-Agent-Authorization": "Bearer opaque-agent-token",
-    }
+    assert gateway_call["headers"] == {"Authorization": "Bearer opaque-agent-token"}

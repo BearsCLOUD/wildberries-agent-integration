@@ -1,10 +1,9 @@
-# Support
+# Поддержка
 
-Open a [GitHub issue](https://github.com/BearsCLOUD/wildberries-agent-integration/issues) with:
+Оператор: ООО «ОУПЕН ГРУПП».
 
-- plugin version and transport;
-- a redacted tool name and error code;
-- the deployment environment (local or hosted).
+По вопросам подключения, обработки данных и удаления связи приложения: [office@nr66.ru](mailto:office@nr66.ru).
 
-Never include Wildberries tokens, Seller bearers, cookies, private seller data, or raw provider
-response bodies. Report security issues privately to the repository owner.
+В обращении укажите описание шага и время ошибки. Не отправляйте токены Wildberries, пароли, коды подтверждения или банковские реквизиты.
+
+Публичная страница: <https://wb.seller.bears.ru/support>

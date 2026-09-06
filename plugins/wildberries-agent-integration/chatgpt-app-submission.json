@@ -1,0 +1,284 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Интеграция агента Wildberries",
+    "subtitle": "Аналитика продавца WB",
+    "description": "Приложение подключает Seller к ChatGPT, показывает аналитику и остатки Wildberries, сравнивает товары и рассчитывает юнит-экономику и пополнение без передачи токена Wildberries в чат.",
+    "category": "BUSINESS"
+  },
+  "tools": {
+    "wb_connect_supplier": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a one-time private Seller account-link handoff without accepting a Wildberries credential.",
+        "open_world_justification": "Only changes the user’s private app connection and does not publish internet content.",
+        "destructive_justification": "Creates a revocable private link and does not delete or overwrite Seller data."
+      }
+    },
+    "wb_connection_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads the current Seller link state and sanitized supplier summaries.",
+        "open_world_justification": "Does not change public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_connect_telegram": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Starts the existing private Telegram connection handoff for the linked Seller user.",
+        "open_world_justification": "Only opens a private onboarding flow and does not send or publish messages.",
+        "destructive_justification": "Does not delete or overwrite data and requires the user to finish linking in Telegram."
+      }
+    },
+    "wb_list_suppliers": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only lists sanitized suppliers owned by or shared with the linked Seller user.",
+        "open_world_justification": "Does not change public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_analytics_summary": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads and aggregates bounded sales, finance, and price data for an owned supplier.",
+        "open_world_justification": "Does not change public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_competitor_analysis": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only analyzes provided competitor observations or reads the fixed Seller competitor source.",
+        "open_world_justification": "Does not change public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_wildberries_proxy": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only executes a finite reviewed catalog of read-only Seller and Wildberries operations.",
+        "open_world_justification": "Reads third-party data but cannot create, publish, send, or update public state.",
+        "destructive_justification": "The operation catalog contains no delete, overwrite, revoke, or irreversible action."
+      }
+    },
+    "wb_refresh_analytics": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Enqueues a bounded analytics refresh job for one owned supplier.",
+        "open_world_justification": "Changes only private Seller processing state and does not publish internet content.",
+        "destructive_justification": "Starts a refresh job but does not delete or overwrite seller records."
+      }
+    },
+    "wb_competitive_price": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only computes a price corridor from provided or privately retrieved observations.",
+        "open_world_justification": "Does not change public prices or any third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_sales_by_region": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves and aggregates regional sales records for an owned supplier.",
+        "open_world_justification": "Does not change public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_sales_weather_impact": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only compares sales observations with supplied weather rows and reports correlation.",
+        "open_world_justification": "Does not fetch weather or change any public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_seo_analytics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only scores supplied or privately retrieved product-card text and keywords.",
+        "open_world_justification": "Does not publish or update a Wildberries product card.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_warehouse_stock": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves bounded warehouse stock records for selected products.",
+        "open_world_justification": "Does not change inventory or any public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_unit_economics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only performs a local deterministic unit-economics calculation from numeric inputs.",
+        "open_world_justification": "Runs locally and does not contact or change an external system.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_upload_cost_price": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Writes one explicitly selected cost price to the user’s private Seller workspace after confirm=true.",
+        "open_world_justification": "Changes private Seller data only and does not publish internet content.",
+        "destructive_justification": "Overwrites the current cost price, with explicit confirm=true required before execution."
+      }
+    },
+    "wb_replenishment_math": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only performs a local deterministic replenishment calculation from numeric inputs.",
+        "open_world_justification": "Runs locally and does not contact or change an external system.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    },
+    "wb_inventory_forecast": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only reads available demand and stock inputs and computes a replenishment recommendation.",
+        "open_world_justification": "Does not place orders, move inventory, or change public or third-party state.",
+        "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Check whether Seller and suppliers are connected.",
+      "user_prompt": "Проверь, подключён ли мой Seller и какие поставщики доступны.",
+      "file_attachment_urls": null,
+      "tools_triggered": "wb_connection_status",
+      "expected_output": "Returns the Seller connection state and sanitized supplier summaries, or a safe next step to link Seller.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Review a bounded sales analytics period.",
+      "user_prompt": "Покажи сводку продаж поставщика 900000001 с 2026-08-01 по 2026-08-14.",
+      "file_attachment_urls": null,
+      "tools_triggered": "wb_analytics_summary",
+      "expected_output": "Returns a bounded sales and orders summary with the requested period and no credentials.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Build a replenishment recommendation from available stock and demand.",
+      "user_prompt": "Спрогнозируй пополнение для поставщика 900000001 и объясни, сколько и куда везти.",
+      "file_attachment_urls": null,
+      "tools_triggered": "wb_inventory_forecast",
+      "expected_output": "Returns quantities, destinations, assumptions, and coverage without placing an order.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Calculate unit economics without account authentication.",
+      "user_prompt": "Посчитай маржу: цена 1200 ₽, себестоимость 320 ₽, комиссия 18%, логистика 80 ₽ и налог 6%.",
+      "file_attachment_urls": null,
+      "tools_triggered": "wb_unit_economics",
+      "expected_output": "Returns a deterministic margin and break-even calculation without accessing Seller.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Exercise the reviewer-safe confirmed cost-price workflow.",
+      "user_prompt": "В демо подтверди установку себестоимости 320 ₽ для nm_id 900000101 у поставщика 900000001.",
+      "file_attachment_urls": null,
+      "tools_triggered": "wb_upload_cost_price",
+      "expected_output": "Requires explicit confirmation and then reports a simulated write with no external mutation.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for a general weather forecast.",
+      "user_prompt": "Какая погода завтра в Алматы?",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because it does not provide general weather forecasts.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for deleting a Wildberries product card.",
+      "user_prompt": "Удали мою карточку товара на Wildberries.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because deleting product cards is unsupported.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for publishing a reply to a customer review.",
+      "user_prompt": "Опубликуй ответ покупателю на этот отзыв.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because it cannot publish review replies.",
+      "expected_output_url": null
+    }
+  ]
+}

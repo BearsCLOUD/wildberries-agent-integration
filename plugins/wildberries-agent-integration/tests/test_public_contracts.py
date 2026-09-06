@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import CallToolResult
 from starlette.testclient import TestClient
 
 from wildberries_agent_mcp.calculations import (
@@ -25,7 +26,9 @@ from wildberries_agent_mcp.server import (
 
 def test_stock_size_mapping_matches_both_product_and_variant() -> None:
     rows = [{"nmId": 101, "chrtId": 1}, {"nmId": 102, "chrtId": 1}]
-    cards = [{"nm_id": 101, "sizes_table": {"values": [{"chrt_id": 1, "tech_size": "M"}]}}]
+    cards = [
+        {"nm_id": 101, "sizes_table": {"values": [{"chrt_id": 1, "tech_size": "M"}]}}
+    ]
     result = _stock_sizes_from_cards(rows, cards)
     assert result[0]["size"] == "M"
     assert "size" not in result[1]
@@ -73,7 +76,9 @@ def test_replenishment_math_accounts_for_inbound_units() -> None:
 def test_inventory_forecast_respects_shorter_requested_horizon() -> None:
     result = inventory_forecast(
         deficit_rows=[{"nm_id": 101, "qty": 0, "amount": 30, "deficit": 30}],
-        stock_rows=[], horizon_days=1, safety_days=0,
+        stock_rows=[],
+        horizon_days=1,
+        safety_days=0,
     )
     item = result["items"][0]
     assert item["recommended_qty"] == 1
@@ -86,7 +91,9 @@ def test_inventory_forecast_keeps_size_and_excludes_other_size_stock() -> None:
         stock_rows=[
             {"nmId": 101, "size": "S", "warehouseName": "Wrong size", "quantity": 10},
             {"nmId": 101, "size": "M", "warehouseName": "Matching size", "quantity": 0},
-        ], horizon_days=1, safety_days=0,
+        ],
+        horizon_days=1,
+        safety_days=0,
     )
     item = result["items"][0]
     assert item["size"] == "M"
@@ -100,10 +107,15 @@ def test_inventory_forecast_combines_rows_of_same_warehouse() -> None:
             {"nmId": 101, "warehouseName": "A", "quantity": 5},
             {"nmId": 101, "warehouseName": "A", "quantity": 5},
             {"nmId": 101, "warehouseName": "B", "quantity": 10},
-        ], horizon_days=1, safety_days=0,
+        ],
+        horizon_days=1,
+        safety_days=0,
     )
     destinations = result["items"][0]["destinations"]
-    assert [(d["warehouse"], d["quantity"]) for d in destinations] == [("A", 1), ("B", 1)]
+    assert [(d["warehouse"], d["quantity"]) for d in destinations] == [
+        ("A", 1),
+        ("B", 1),
+    ]
 
 
 def test_inventory_forecast_allocates_replenishment_to_warehouses() -> None:
@@ -125,7 +137,9 @@ def test_inventory_forecast_allocates_replenishment_to_warehouses() -> None:
     assert item["destinations"][1]["quantity"] > item["destinations"][0]["quantity"]
 
 
-def test_inventory_forecast_uses_regional_demand_when_warehouse_stock_is_missing() -> None:
+def test_inventory_forecast_uses_regional_demand_when_warehouse_stock_is_missing() -> (
+    None
+):
     result = inventory_forecast(
         deficit_rows=[
             {
@@ -148,7 +162,9 @@ def test_inventory_forecast_uses_regional_demand_when_warehouse_stock_is_missing
     assert item["destinations"]
     assert {row["destination_type"] for row in item["destinations"]} == {"district"}
     assert {row["warehouse"] for row in item["destinations"]} == {"Central", "Volga"}
-    assert sum(row["quantity"] for row in item["destinations"]) == item["recommended_qty"]
+    assert (
+        sum(row["quantity"] for row in item["destinations"]) == item["recommended_qty"]
+    )
     assert "региональному спросу" in item["warnings"][0]
 
 
@@ -159,6 +175,8 @@ def test_public_tool_list_contains_analytics_and_calculators() -> None:
     names = {tool.name for tool in tools}
     assert names == {
         "wb_connect_supplier",
+        "wb_connection_status",
+        "wb_connect_telegram",
         "wb_list_suppliers",
         "wb_analytics_summary",
         "wb_competitor_analysis",
@@ -176,6 +194,20 @@ def test_public_tool_list_contains_analytics_and_calculators() -> None:
     }
 
 
+def test_public_legal_pages_identify_operator_without_bank_details() -> None:
+    server = build_server(Settings())
+    with TestClient(server.streamable_http_app()) as client:
+        for path in ("/", "/privacy", "/terms", "/support"):
+            response = client.get(path)
+            assert response.status_code == 200
+            assert "ООО «ОУПЕН ГРУПП»" in response.text
+            assert "40702810220000098370" not in response.text
+            assert "044525104" not in response.text
+
+        assert "не передаётся MCP-серверу или OpenAI" in client.get("/privacy").text
+        assert "явного подтверждения" in client.get("/terms").text
+
+
 def test_public_tool_annotations_keep_private_reads_read_only() -> None:
     server = build_server(Settings(connect_url="https://seller.example/connect"))
     tools = asyncio.run(server.list_tools())
@@ -187,6 +219,7 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
     assert annotations["wb_refresh_analytics"].readOnlyHint is False
     for name in names - {
         "wb_connect_supplier",
+        "wb_connect_telegram",
         "wb_upload_cost_price",
         "wb_refresh_analytics",
     }:
@@ -194,25 +227,24 @@ def test_public_tool_annotations_keep_private_reads_read_only() -> None:
         assert annotations[name].openWorldHint is False
     assert annotations["wb_wildberries_proxy"].readOnlyHint is True
     assert annotations["wb_wildberries_proxy"].destructiveHint is False
+    assert annotations["wb_upload_cost_price"].destructiveHint is True
 
 
-def test_supplier_handoff_supports_new_seller_registration_without_mcp_bearer() -> None:
+def test_supplier_connection_requires_bearer_before_gateway() -> None:
     server = build_server(
         Settings(
             environment="production",
             connect_url="https://seller.bears.ru/authentication/registration",
         )
     )
-    _, result = asyncio.run(
+    response = asyncio.run(
         server.call_tool("wb_connect_supplier", {"supplier_id_wb": 31460})
     )
+    assert isinstance(response, CallToolResult)
+    result = response.structuredContent
 
-    assert result["ok"] is True
-    assert result["url"] == (
-        "https://seller.bears.ru/authentication/registration?"
-        "source=wildberries-agent-integration&supplier_id_wb=31460"
-    )
-    assert result["flow"].startswith("Регистрация пользователя Seller")
+    assert result is not None
+    assert result["error"]["code"] == "auth_required"
 
 
 def test_cost_price_upload_rejects_invalid_input_before_gateway(monkeypatch) -> None:
@@ -224,7 +256,7 @@ def test_cost_price_upload_rejects_invalid_input_before_gateway(monkeypatch) -> 
 
     monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
     server = build_server(Settings(connect_url="https://seller.example/connect"))
-    _, result = asyncio.run(
+    response = asyncio.run(
         server.call_tool(
             "wb_upload_cost_price",
             {
@@ -234,9 +266,12 @@ def test_cost_price_upload_rejects_invalid_input_before_gateway(monkeypatch) -> 
             },
         )
     )
+    assert isinstance(response, CallToolResult)
+    result = response.structuredContent
 
+    assert result is not None
     assert result["ok"] is False
-    assert result["error"]["code"] == "invalid_cost_price_input"
+    assert result["error"]["code"] == "auth_required"
     assert calls == []
 
 
@@ -251,24 +286,30 @@ def test_cost_price_upload_requires_bearer_for_explicit_input(monkeypatch) -> No
     server = build_server(
         Settings(environment="production", gateway_url="https://seller.example")
     )
-    _, result = asyncio.run(
+    response = asyncio.run(
         server.call_tool(
             "wb_upload_cost_price",
             {
                 "supplier_id_wb": 31460,
                 "nm_id": 123456789,
                 "cost_price": 320.0,
+                "confirm": True,
             },
         )
     )
+    assert isinstance(response, CallToolResult)
+    result = response.structuredContent
 
+    assert result is not None
     assert result["ok"] is False
     assert result["error"]["code"] == "auth_required"
     assert calls == []
 
 
 @pytest.mark.parametrize("provided", [False, True])
-def test_competitor_source_uses_seller_unless_rows_provided(monkeypatch, provided) -> None:
+def test_competitor_source_uses_seller_unless_rows_provided(
+    monkeypatch, provided
+) -> None:
     calls = []
 
     async def fake_request(self, **kwargs):  # noqa: ARG001
@@ -276,10 +317,13 @@ def test_competitor_source_uses_seller_unless_rows_provided(monkeypatch, provide
         return [{"nm_id": 102, "sale_price": 500}]
 
     monkeypatch.setattr(SellerGatewayClient, "request", fake_request)
-    server = build_server(Settings(
-        environment="test", gateway_url="http://seller.example",
-        static_access_token="synthetic-agent-token",
-    ))
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
     arguments = {"supplier_id_wb": 31460, "nm_id": 101}
     if provided:
         arguments["competitor_rows"] = [{"sale_price": 600}]
@@ -288,11 +332,13 @@ def test_competitor_source_uses_seller_unless_rows_provided(monkeypatch, provide
     assert result["source"] == ("provided_rows" if provided else "seller_open_methods")
     assert len(calls) == (0 if provided else 1)
     if calls:
-        assert calls[0]["path"] == "/open_methods/competitors"
+        assert calls[0]["path"] == "/agent/open_methods/competitors"
         assert calls[0]["params"] == {"nm_id": 101}
 
 
-def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monkeypatch) -> None:
+def test_cost_price_upload_forwards_scoped_payload_without_provider_result(
+    monkeypatch,
+) -> None:
     calls = []
 
     async def fake_request(self, **kwargs):  # noqa: ARG001
@@ -319,6 +365,7 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monke
                 "supplier_id_wb": 31460,
                 "nm_id": 123456789,
                 "cost_price": 320.0,
+                "confirm": True,
             },
         )
     )
@@ -327,10 +374,14 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monke
     assert calls == [
         {
             "authorization": "Bearer synthetic-agent-token",
-            "path": "/price_management/cost_price",
+            "path": "/agent/price_management/cost_price",
             "method": "PUT",
             "params": {"supplier_id_wb": 31460},
-            "json": {"nm_id": 123456789, "cost_price": 320.0},
+            "json": {
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+            },
             "request_id": None,
         }
     ]
@@ -342,6 +393,31 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(monke
         "nm_id": 123456789,
         "cost_price": 320.0,
     }
+
+
+def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
+    async def unexpected_request(*_args, **_kwargs):
+        raise AssertionError("unconfirmed write must not reach Seller")
+
+    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+            },
+        )
+    )
+    assert result["error"]["code"] == "confirmation_required"
 
 
 def test_wildberries_proxy_forwards_only_a_fixed_seller_operation(monkeypatch) -> None:
@@ -374,7 +450,7 @@ def test_wildberries_proxy_forwards_only_a_fixed_seller_operation(monkeypatch) -
     assert calls == [
         {
             "authorization": "Bearer synthetic-agent-token",
-            "path": "/statistics/tape/v2",
+            "path": "/agent/statistics/tape/v2",
             "method": "GET",
             "params": {
                 "supplier_id_wb": 31460,
@@ -415,7 +491,7 @@ def test_analytics_refresh_is_a_separate_bounded_write_tool(monkeypatch) -> None
     assert calls == [
         {
             "authorization": "Bearer synthetic-agent-token",
-            "path": "/statistics/update/31460",
+            "path": "/agent/statistics/update/31460",
             "method": "POST",
             "params": {"period": 7},
             "request_id": None,
@@ -475,7 +551,9 @@ def test_rejected_public_bearer_does_not_receive_mcp_access(monkeypatch) -> None
     assert asyncio.run(verifier.verify_token("rejected-agent-token")) is None
 
 
-def test_wildberries_proxy_rejects_unknown_or_credential_payload_before_gateway(monkeypatch) -> None:
+def test_wildberries_proxy_rejects_unknown_or_credential_payload_before_gateway(
+    monkeypatch,
+) -> None:
     calls = []
 
     async def unexpected_request(*args, **kwargs):
@@ -493,7 +571,11 @@ def test_wildberries_proxy_rejects_unknown_or_credential_payload_before_gateway(
 
     for operation, payload, code in (
         ("arbitrary", {}, "proxy_operation_not_allowed"),
-        ("seller_tape", {"nm_id": 123456789, "access_token": "raw"}, "proxy_payload_not_allowed"),
+        (
+            "seller_tape",
+            {"nm_id": 123456789, "access_token": "raw"},
+            "proxy_payload_not_allowed",
+        ),
     ):
         _, result = asyncio.run(
             server.call_tool(
@@ -526,26 +608,47 @@ def test_credential_fields_are_removed_from_nested_results() -> None:
     }
 
 
-def test_production_requires_identity_bridge_before_gateway_call() -> None:
+def test_production_does_not_require_identity_bridge_before_gateway_call(
+    monkeypatch,
+) -> None:
     client = SellerGatewayClient(
         Settings(environment="production", gateway_url="https://seller.example")
     )
 
-    with pytest.raises(GatewayError, match="identity_bridge_not_configured"):
-        asyncio.run(
-            client.request(
-                authorization="Bearer synthetic-mcp-token",
-                path="/suppliers",
-            )
+    async def fake_request(**kwargs):
+        return kwargs
+
+    monkeypatch.setattr(client, "_request_http", fake_request)
+    result = asyncio.run(
+        client.request(
+            authorization="Bearer synthetic-mcp-token",
+            path="/agent/suppliers",
         )
+    )
+    assert result["authorization"] == "Bearer synthetic-mcp-token"
 
 
 def test_handoff_urls_reject_credentials_and_non_https_production_urls() -> None:
-    assert _safe_handoff_url("https://seller.example/integration?token=secret", require_https=True) is None
-    assert _safe_handoff_url("https://seller.example/integration#access-token", require_https=True) is None
-    assert _safe_handoff_url("http://seller.example/integration", require_https=True) is None
+    assert (
+        _safe_handoff_url(
+            "https://seller.example/integration?token=secret", require_https=True
+        )
+        is None
+    )
+    assert (
+        _safe_handoff_url(
+            "https://seller.example/integration#access-token", require_https=True
+        )
+        is None
+    )
+    assert (
+        _safe_handoff_url("http://seller.example/integration", require_https=True)
+        is None
+    )
     assert _safe_handoff_url("http://127.0.0.1:8000/integration", require_https=False)
-    assert _secure_base_url("https://agents.example.com") == "https://agents.example.com"
+    assert (
+        _secure_base_url("https://agents.example.com") == "https://agents.example.com"
+    )
     assert _secure_base_url("https://agents.example.com?token=secret") is None
 
 
@@ -593,19 +696,19 @@ def test_oauth_resource_metadata_uses_canonical_issuer_and_free_scope() -> None:
     assert mcp_metadata.status_code == 200
     for response in (root_metadata, mcp_metadata):
         assert response.json()["resource"] == "https://mcp.example.com/mcp"
-        assert response.json()["authorization_servers"] == [
-            "https://auth.example.com/"
-        ]
+        assert response.json()["authorization_servers"] == ["https://auth.example.com/"]
         assert response.json()["scopes_supported"] == ["wildberries-agent-free"]
 
 
-def test_every_tool_advertises_the_free_oauth_security_scheme() -> None:
+def test_tools_advertise_noauth_or_free_oauth_security_scheme() -> None:
     tools = asyncio.run(build_server(Settings()).list_tools())
 
     assert tools
     for tool in tools:
-        expected = [
-            {"type": "oauth2", "scopes": ["wildberries-agent-free"]}
-        ]
+        expected = (
+            [{"type": "noauth"}]
+            if tool.name in {"wb_replenishment_math", "wb_unit_economics"}
+            else [{"type": "oauth2", "scopes": ["wildberries-agent-free"]}]
+        )
         assert tool.securitySchemes == expected
         assert tool.meta["securitySchemes"] == expected

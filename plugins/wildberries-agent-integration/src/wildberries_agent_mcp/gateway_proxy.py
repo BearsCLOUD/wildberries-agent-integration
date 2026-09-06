@@ -34,50 +34,61 @@ _SENSITIVE_PARTS = (
 )
 
 _OPERATIONS = {
-    "competitor_cards": {"path": "/open_methods/competitors", "method": "GET"},
-    "competitor_orders": {"path": "/competitors/products/orders", "method": "POST"},
-    "card_details": {"path": "/open_methods/get_cards_detail", "method": "POST"},
-    "card_photos": {"path": "/open_methods/get_cards_photo", "method": "POST"},
-    "price_block": {"path": "/open_methods/price_block", "method": "POST"},
-    "feedbacks": {"path": "/feedbacks/get_feedbacks", "method": "GET", "supplier": True},
+    "competitor_cards": {"path": "/agent/open_methods/competitors", "method": "GET"},
+    "competitor_orders": {
+        "path": "/agent/competitors/products/orders",
+        "method": "POST",
+    },
+    "card_details": {"path": "/agent/open_methods/get_cards_detail", "method": "POST"},
+    "card_photos": {"path": "/agent/open_methods/get_cards_photo", "method": "POST"},
+    "price_block": {"path": "/agent/open_methods/price_block", "method": "POST"},
+    "feedbacks": {
+        "path": "/agent/feedbacks/get_feedbacks",
+        "method": "GET",
+        "supplier": True,
+    },
     "feedback_average": {
-        "path": "/feedbacks/average_valuation",
+        "path": "/agent/feedbacks/average_valuation",
         "method": "POST",
         "supplier": True,
     },
     "wb_api_capabilities": {
-        "path_template": "/suppliers/{supplier_id_wb}/wb/capabilities",
+        "path_template": "/agent/suppliers/{supplier_id_wb}/wb/capabilities",
         "method": "GET",
         "supplier": True,
     },
     "wb_api_operation": {
-        "path_template": "/suppliers/{supplier_id_wb}/wb/operations/{operation_id}",
+        "path_template": "/agent/suppliers/{supplier_id_wb}/wb/operations/{operation_id}",
         "method": "POST",
         "supplier": True,
     },
-    "seller_tape": {"path": "/statistics/tape/v2", "method": "GET", "supplier": True},
+    "seller_tape": {
+        "path": "/agent/statistics/tape/v2",
+        "method": "GET",
+        "supplier": True,
+    },
     "analytics_refresh_status": {
-        "path_template": "/suppliers_analytics/status_update/{supplier_id_wb}",
+        "path_template": "/agent/suppliers_analytics/status_update/{supplier_id_wb}",
         "method": "GET",
         "supplier": True,
     },
     "kt_statistics_period": {
-        "path": "/integration-wb/kt/statistics/period",
+        "path": "/agent/integration-wb/kt/statistics/period",
         "method": "POST",
         "supplier": True,
     },
     "kt_statistics_grouped": {
-        "path": "/integration-wb/kt/statistics/period/grouped",
+        "path": "/agent/integration-wb/kt/statistics/period/grouped",
         "method": "POST",
         "supplier": True,
     },
     "promotion_list": {
-        "path": "/integration-wb/promotion",
+        "path": "/agent/integration-wb/promotion",
         "method": "GET",
         "supplier": True,
     },
     "promotion_details": {
-        "path": "/integration-wb/promotion",
+        "path": "/agent/integration-wb/promotion",
         "method": "POST",
         "supplier": True,
     },
@@ -98,7 +109,11 @@ def build_gateway_request(
 
     if operation not in _OPERATIONS:
         raise ValueError("proxy_operation_not_allowed")
-    if not isinstance(supplier_id_wb, int) or isinstance(supplier_id_wb, bool) or supplier_id_wb <= 0:
+    if (
+        not isinstance(supplier_id_wb, int)
+        or isinstance(supplier_id_wb, bool)
+        or supplier_id_wb <= 0
+    ):
         raise ValueError("invalid_proxy_supplier")
     if payload is None:
         payload = {}
@@ -118,7 +133,9 @@ def build_gateway_request(
         search_for = payload.get("search_for")
         if not isinstance(search_for, (str, int)) or isinstance(search_for, bool):
             raise ValueError("proxy_payload_invalid")
-        if isinstance(search_for, str) and (not search_for.strip() or len(search_for) > 200):
+        if isinstance(search_for, str) and (
+            not search_for.strip() or len(search_for) > 200
+        ):
             raise ValueError("proxy_payload_invalid")
         query["competitors_type"] = competitor_type
         body = {"search_for": search_for}
@@ -127,7 +144,10 @@ def build_gateway_request(
         if (
             not isinstance(nm_ids, list)
             or not 1 <= len(nm_ids) <= MAX_LIST_ITEMS
-            or any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in nm_ids)
+            or any(
+                not isinstance(item, int) or isinstance(item, bool) or item <= 0
+                for item in nm_ids
+            )
         ):
             raise ValueError("proxy_payload_invalid")
         body = {"nm_ids": list(nm_ids)}
@@ -136,7 +156,10 @@ def build_gateway_request(
         if (
             not isinstance(nm_ids, list)
             or not 1 <= len(nm_ids) <= MAX_LIST_ITEMS
-            or any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in nm_ids)
+            or any(
+                not isinstance(item, int) or isinstance(item, bool) or item <= 0
+                for item in nm_ids
+            )
         ):
             raise ValueError("proxy_payload_invalid")
         # The Seller Gateway endpoint accepts the list as its JSON document.
@@ -173,7 +196,11 @@ def build_gateway_request(
         if payload:
             raise ValueError("proxy_payload_invalid")
         query["type_update"] = "statistics"
-    elif operation in {"kt_statistics_period", "kt_statistics_grouped", "promotion_details"}:
+    elif operation in {
+        "kt_statistics_period",
+        "kt_statistics_grouped",
+        "promotion_details",
+    }:
         query["supplier_id_wb"] = supplier_id_wb
         body = dict(payload)
     elif operation == "promotion_list":
@@ -225,7 +252,11 @@ def _positive_int(payload: Mapping[str, Any], name: str) -> int:
 
 
 def _bounded_int(value: Any, minimum: int, maximum: int) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or not minimum <= value <= maximum:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or not minimum <= value <= maximum
+    ):
         raise ValueError("proxy_payload_invalid")
     return value
 

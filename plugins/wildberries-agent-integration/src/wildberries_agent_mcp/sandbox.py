@@ -36,7 +36,13 @@ def is_sandbox_authorization(authorization: str | None) -> bool:
     return authorization == f"Bearer {SANDBOX_ACCESS_TOKEN}"
 
 
-def result(operation: str, *, data: Any = None, supplier_id_wb: int | None = None, **fields: Any) -> dict[str, Any]:
+def result(
+    operation: str,
+    *,
+    data: Any = None,
+    supplier_id_wb: int | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
     response: dict[str, Any] = {
         "ok": True,
         "sandbox": True,
@@ -54,7 +60,9 @@ def result(operation: str, *, data: Any = None, supplier_id_wb: int | None = Non
     return response
 
 
-def error(code: str, message: str, *, supplier_id_wb: int | None = None) -> dict[str, Any]:
+def error(
+    code: str, message: str, *, supplier_id_wb: int | None = None
+) -> dict[str, Any]:
     response = result("sandbox")
     response["ok"] = False
     response["error"] = {"code": code, "message": message}
@@ -88,17 +96,28 @@ def suppliers() -> dict[str, Any]:
     )
 
 
-def connect_supplier() -> dict[str, Any]:
+def connect_supplier(*, supplier_id_wb: int | None = None) -> dict[str, Any]:
     return result(
         "connect_supplier",
-        status="simulated",
-        message="Виртуальный поставщик уже подключён; реальный токен не запрашивается.",
-        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        status="connected",
+        supplier_id_wb=supplier_id_wb or SANDBOX_SUPPLIER_ID,
     )
 
 
+def connection_status() -> dict[str, Any]:
+    return result("connection_status", status="connected")
+
+
+def connect_telegram() -> dict[str, Any]:
+    return result("connect_telegram", status="connected")
+
+
 def analytics_summary(
-    *, supplier_id_wb: int, period: dict[str, str], include_finance: bool, include_price_table: bool
+    *,
+    supplier_id_wb: int,
+    period: dict[str, str],
+    include_finance: bool,
+    include_price_table: bool,
 ) -> dict[str, Any]:
     response = result(
         "analytics_summary",
@@ -126,7 +145,9 @@ def analytics_summary(
     return response
 
 
-def proxy(*, supplier_id_wb: int, operation: str, payload: dict[str, Any] | None) -> dict[str, Any]:
+def proxy(
+    *, supplier_id_wb: int, operation: str, payload: dict[str, Any] | None
+) -> dict[str, Any]:
     payload = payload or {}
     if operation not in SANDBOX_READ_OPERATIONS:
         return error(
@@ -136,9 +157,21 @@ def proxy(*, supplier_id_wb: int, operation: str, payload: dict[str, Any] | None
         )
     rows: Any
     if operation == "seller_tape":
-        rows = [{"nm_id": payload.get("nm_id", 900000101), "region_name": "Москва", "orders": 12}]
+        rows = [
+            {
+                "nm_id": payload.get("nm_id", 900000101),
+                "region_name": "Москва",
+                "orders": 12,
+            }
+        ]
     elif operation == "feedbacks":
-        rows = [{"nm_id": 900000101, "rating": 5, "text": "Синтетический отзыв для проверки MCP."}]
+        rows = [
+            {
+                "nm_id": 900000101,
+                "rating": 5,
+                "text": "Синтетический отзыв для проверки MCP.",
+            }
+        ]
     elif operation == "feedback_average":
         rows = {"nm_id": 900000101, "average_rating": 4.8, "reviews": 25}
     elif operation == "promotion_list":
@@ -146,11 +179,21 @@ def proxy(*, supplier_id_wb: int, operation: str, payload: dict[str, Any] | None
     elif operation == "analytics_refresh_status":
         rows = {"status": "completed", "updated_at": "2026-01-15T12:00:00Z"}
     else:
-        rows = {"items": [], "note": "Синтетическая выборка без обращения к Wildberries."}
-    return result("wildberries_proxy", supplier_id_wb=supplier_id_wb, operation_id=operation, data=rows)
+        rows = {
+            "items": [],
+            "note": "Синтетическая выборка без обращения к Wildberries.",
+        }
+    return result(
+        "wildberries_proxy",
+        supplier_id_wb=supplier_id_wb,
+        operation_id=operation,
+        data=rows,
+    )
 
 
-def warehouse_stock(*, supplier_id_wb: int, nm_ids: list[int], include_fbs_stocks: bool) -> dict[str, Any]:
+def warehouse_stock(
+    *, supplier_id_wb: int, nm_ids: list[int], include_fbs_stocks: bool
+) -> dict[str, Any]:
     rows = [
         {
             "nm_id": nm_id,
@@ -177,7 +220,9 @@ def refresh(*, supplier_id_wb: int, period: int) -> dict[str, Any]:
     )
 
 
-def upload_cost_price(*, supplier_id_wb: int, nm_id: int, cost_price: float) -> dict[str, Any]:
+def upload_cost_price(
+    *, supplier_id_wb: int, nm_id: int, cost_price: float
+) -> dict[str, Any]:
     return result(
         "set_cost_price",
         supplier_id_wb=supplier_id_wb,
@@ -189,15 +234,35 @@ def upload_cost_price(*, supplier_id_wb: int, nm_id: int, cost_price: float) -> 
     )
 
 
-def regional_sales(*, supplier_id_wb: int, period: dict[str, str], nm_id: int | None) -> list[dict[str, Any]]:
+def regional_sales(
+    *, supplier_id_wb: int, period: dict[str, str], nm_id: int | None
+) -> list[dict[str, Any]]:
     return [
-        {"date": period["date_to"], "region": "Москва", "nm_id": nm_id or 900000101, "sales": 12},
-        {"date": period["date_to"], "region": "Казань", "nm_id": nm_id or 900000101, "sales": 7},
+        {
+            "date": period["date_to"],
+            "region": "Москва",
+            "nm_id": nm_id or 900000101,
+            "sales": 12,
+        },
+        {
+            "date": period["date_to"],
+            "region": "Казань",
+            "nm_id": nm_id or 900000101,
+            "sales": 7,
+        },
     ]
 
 
 def inventory_inputs() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     return (
-        [{"nm_id": 900000101, "amount": 20, "qty": 0, "deficit": 20, "deficit_districts": []}],
+        [
+            {
+                "nm_id": 900000101,
+                "amount": 20,
+                "qty": 0,
+                "deficit": 20,
+                "deficit_districts": [],
+            }
+        ],
         [{"nmId": 900000101, "warehouseName": "Коледино", "quantity": 24}],
     )

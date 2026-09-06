@@ -3,15 +3,14 @@ from __future__ import annotations
 from datetime import date, timedelta
 from math import isfinite
 from typing import Annotated, Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.provider import AccessToken
-from mcp.server.auth.settings import AuthSettings
-from mcp.types import CallToolResult, ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from .calculations import (
     aggregate_sales_by_region,
@@ -26,10 +25,13 @@ from .calculations import (
 from .client import GatewayError, SellerGatewayClient
 from .config import Settings
 from .gateway_proxy import allowed_operations, build_gateway_request
+from .public_pages import landing, privacy, support, terms
 from .sandbox import (
     SANDBOX_ACCESS_TOKEN,
     analytics_summary as sandbox_analytics_summary,
+    connect_telegram as sandbox_connect_telegram,
     connect_supplier as sandbox_connect_supplier,
+    connection_status as sandbox_connection_status,
     error as sandbox_error,
     inventory_inputs as sandbox_inventory_inputs,
     is_sandbox_authorization,
@@ -44,45 +46,86 @@ from .sandbox import (
 )
 
 _MCP_SCOPES = ["wildberries-agent-free"]
+_NOAUTH_TOOLS = frozenset({"wb_replenishment_math", "wb_unit_economics"})
 _OAUTH_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": _MCP_SCOPES}]
+_NOAUTH_SECURITY_SCHEMES = [{"type": "noauth"}]
 
 
 class _AgentFastMCP(FastMCP):
-    """Advertise the OAuth policy on every tool for ChatGPT account linking."""
+    """Advertise and enforce the per-tool authentication policy."""
+
+    def configure_agent_guard(
+        self, *, gateway: SellerGatewayClient, settings: Settings
+    ) -> None:
+        self._agent_gateway = gateway
+        self._agent_settings = settings
 
     async def call_tool(self, name: str, arguments: dict[str, Any]):
+        if name not in _NOAUTH_TOOLS:
+            settings = self._agent_settings
+            auth = _auth_header(self.get_context(), settings)
+            if auth is None:
+                return _oauth_challenge(settings, code="auth_required")
+            trusted_static = (
+                settings.allows_static_token
+                and settings.static_access_token
+                and auth
+                == (
+                    settings.static_access_token
+                    if settings.static_access_token.startswith("Bearer ")
+                    else f"Bearer {settings.static_access_token}"
+                )
+            )
+            if not is_sandbox_authorization(auth) and not trusted_static:
+                try:
+                    await self._agent_gateway.verify_agent_token(auth)
+                except GatewayError as error:
+                    if error.status == 401:
+                        return _oauth_challenge(settings, code="invalid_token")
+                    return CallToolResult(
+                        content=[
+                            TextContent(
+                                type="text",
+                                text="Не удалось проверить подключение Seller.",
+                            )
+                        ],
+                        structuredContent={
+                            "ok": False,
+                            "error": {"code": "authentication_unavailable"},
+                        },
+                        isError=True,
+                    )
         result = await super().call_tool(name, arguments)
-        # A bearer can expire after transport authentication but before Seller
-        # handles the operation. Signal account relinking at the protocol level.
-        auth = self.settings.auth
-        if auth is not None and isinstance(result, tuple) and len(result) == 2:
+        if isinstance(result, tuple) and len(result) == 2:
             content, data = result
             error = data.get("error") if isinstance(data, dict) else None
-            if isinstance(error, dict) and data.get("ok") is False and (
+            if isinstance(error, dict) and (
                 error.get("status") == 401 or error.get("code") == "auth_required"
             ):
-                resource = str(auth.resource_server_url).rstrip("/")
-                origin = urlsplit(resource)
-                metadata_url = urlunsplit((
-                    origin.scheme, origin.netloc,
-                    f"/.well-known/oauth-protected-resource{origin.path}", "", "",
-                ))
-                return CallToolResult(
-                    content=content,
-                    structuredContent=data,
-                    isError=True,
-                    _meta={"mcp/www_authenticate": [
-                        f'Bearer resource_metadata="{metadata_url}", error="invalid_token"'
-                    ]},
+                challenged = _oauth_challenge(
+                    self._agent_settings, code="invalid_token"
                 )
+                challenged.content = content
+                challenged.structuredContent = data
+                return challenged
         return result
 
     async def list_tools(self):
         tools = await super().list_tools()
         for tool in tools:
+            source = (
+                _NOAUTH_SECURITY_SCHEMES
+                if tool.name in _NOAUTH_TOOLS
+                else _OAUTH_SECURITY_SCHEMES
+            )
             schemes = [
-                {"type": scheme["type"], "scopes": list(scheme["scopes"])}
-                for scheme in _OAUTH_SECURITY_SCHEMES
+                dict(
+                    scheme,
+                    **(
+                        {"scopes": list(scheme["scopes"])} if "scopes" in scheme else {}
+                    ),
+                )
+                for scheme in source
             ]
             tool.securitySchemes = schemes
             tool.meta = {**(tool.meta or {}), "securitySchemes": schemes}
@@ -92,17 +135,6 @@ class _AgentFastMCP(FastMCP):
 def build_server(settings: Settings | None = None) -> FastMCP:
     settings = settings or Settings.from_env()
     gateway = SellerGatewayClient(settings)
-    public_url = _secure_base_url(settings.public_url)
-    auth_issuer = _secure_base_url(settings.auth_issuer)
-    auth_settings = (
-        AuthSettings(
-            issuer_url=auth_issuer,
-            resource_server_url=f"{public_url}/mcp",
-            required_scopes=_MCP_SCOPES,
-        )
-        if public_url and auth_issuer
-        else None
-    )
     server = _AgentFastMCP(
         name="Интеграция агента Wildberries",
         instructions=(
@@ -114,15 +146,35 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         streamable_http_path="/mcp",
         json_response=True,
         stateless_http=True,
-        auth=auth_settings,
-        token_verifier=(
-            _SellerIdentityTokenVerifier(gateway) if auth_settings else None
-        ),
+        # Authentication is intentionally enforced by private tools, not by a
+        # transport-wide middleware: the two pure calculators are public.
+        # OAuth metadata remains advertised by the explicit well-known route.
+        auth=None,
+        token_verifier=None,
     )
+    server.configure_agent_guard(gateway=gateway, settings=settings)
 
     @server.custom_route("/healthz", methods=["GET"], name="healthz")
     async def healthz(_: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok", "service": "wildberries-agent-integration"})
+        return JSONResponse(
+            {"status": "ok", "service": "wildberries-agent-integration"}
+        )
+
+    @server.custom_route("/", methods=["GET"], name="landing")
+    async def landing_route(_: Request) -> HTMLResponse:
+        return HTMLResponse(landing())
+
+    @server.custom_route("/privacy", methods=["GET"], name="privacy")
+    async def privacy_route(_: Request) -> HTMLResponse:
+        return HTMLResponse(privacy())
+
+    @server.custom_route("/terms", methods=["GET"], name="terms")
+    async def terms_route(_: Request) -> HTMLResponse:
+        return HTMLResponse(terms())
+
+    @server.custom_route("/support", methods=["GET"], name="support")
+    async def support_route(_: Request) -> HTMLResponse:
+        return HTMLResponse(support())
 
     @server.custom_route(
         "/.well-known/openai-apps-challenge",
@@ -131,7 +183,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     )
     async def openai_apps_challenge(_: Request) -> PlainTextResponse:
         token = settings.openai_apps_challenge.strip()
-        if not token or len(token) > 512 or any(character.isspace() for character in token):
+        if (
+            not token
+            or len(token) > 512
+            or any(character.isspace() for character in token)
+        ):
             return PlainTextResponse(
                 "openai_apps_challenge_not_configured",
                 status_code=404,
@@ -185,64 +241,86 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
         if is_sandbox_authorization(auth):
-            return sandbox_connect_supplier()
-        if auth is not None:
-            try:
-                oauth = await gateway.request(
-                    authorization=auth,
-                    path="/wb-oauth/authorize",
-                    request_id=_request_id(ctx),
-                )
-                if isinstance(oauth, dict):
-                    authorization_url = oauth.get("authorization_url") or oauth.get("url")
-                    authorization_url = _safe_handoff_url(
-                        authorization_url, require_https=True
-                    )
-                    if authorization_url:
-                        return {
-                            "ok": True,
-                            "url": authorization_url,
-                            "flow": "OAuth Wildberries в Seller",
-                            "security": "Подтвердите доступ в браузере; учётные данные остаются вне диалога с агентом.",
-                        }
-            except GatewayError as error:
-                # A deployment may not expose WB OAuth yet; the explicit browser handoff remains safe.
-                if _is_identity_boundary_error(error):
-                    return _gateway_error(error)
-        if not settings.connect_url:
-            return {
-                "ok": False,
-                "error": {"code": "connect_url_not_configured", "message": "URL подключения Seller не настроен."},
-            }
-        connect_url = _safe_handoff_url(
-            _with_query(
-                settings.connect_url,
-                {
-                    "source": "wildberries-agent-integration",
-                    **({"supplier_id_wb": supplier_id_wb} if supplier_id_wb else {}),
-                },
-            ),
-            require_https=settings.requires_identity_bridge,
-        )
-        if not connect_url:
-            return {
-                "ok": False,
-                "error": {
-                    "code": "unsafe_connect_url",
-                    "message": "URL подключения Seller должен быть HTTPS без параметров, похожих на учётные данные.",
-                },
-            }
-        return {
-            "ok": True,
-            "url": connect_url,
-            "flow": (
-                "Регистрация пользователя Seller → Интеграция → Добавить поставщика"
-                if _is_registration_url(connect_url)
-                else "Интеграция Seller → Добавить поставщика → Персональный API-токен"
-            ),
-            "security": "Завершите регистрацию или вход и введите токен в Seller, а не в чате. Агент получает только статус подключения.",
-            "agent_next_step": "После завершения браузерного сценария повторите запрос статуса в агенте.",
-        }
+            return sandbox_connect_supplier(supplier_id_wb=supplier_id_wb)
+        if auth is None:
+            return _auth_error()
+        if supplier_id_wb is not None and not _valid_positive_id(supplier_id_wb):
+            return _input_error_for_auth(
+                auth,
+                "invalid_supplier_id",
+                "supplier_id_wb должен быть положительным целым числом.",
+            )
+        try:
+            data = await gateway.request(
+                authorization=auth,
+                path="/agent/connection/supplier",
+                method="POST",
+                json=(
+                    {"supplier_id_wb": supplier_id_wb}
+                    if supplier_id_wb is not None
+                    else {}
+                ),
+                request_id=_request_id(ctx),
+            )
+            return _connection_result(data, default_status="pending")
+        except GatewayError as error:
+            return _gateway_error(error)
+
+    @server.tool(
+        name="wb_connection_status",
+        title="Статус подключения Wildberries",
+        description="Показывает статус подключения текущего аккаунта Seller без учётных данных.",
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_connection_status(ctx: Context | None = None) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if is_sandbox_authorization(auth):
+            return sandbox_connection_status()
+        if auth is None:
+            return _auth_error()
+        try:
+            data = await gateway.request(
+                authorization=auth,
+                path="/agent/connection/status",
+                request_id=_request_id(ctx),
+            )
+            return _connection_result(data, default_status="unknown")
+        except GatewayError as error:
+            return _gateway_error(error)
+
+    @server.tool(
+        name="wb_connect_telegram",
+        title="Подключить Telegram",
+        description="Запускает существующий Seller-сценарий подключения Telegram без передачи секретов агенту.",
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def wb_connect_telegram(ctx: Context | None = None) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if is_sandbox_authorization(auth):
+            return sandbox_connect_telegram()
+        if auth is None:
+            return _auth_error()
+        try:
+            data = await gateway.request(
+                authorization=auth,
+                path="/agent/connection/telegram",
+                method="POST",
+                json={},
+                request_id=_request_id(ctx),
+            )
+            return _connection_result(data, default_status="pending")
+        except GatewayError as error:
+            return _gateway_error(error)
 
     @server.tool(
         name="wb_list_suppliers",
@@ -259,7 +337,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         auth = _auth_header(ctx, settings)
         if is_sandbox_authorization(auth):
             return sandbox_suppliers()
-        return await _gateway_result(gateway, settings, ctx, path="/suppliers", operation="list_suppliers")
+        return await _gateway_result(
+            gateway, settings, ctx, path="/agent/suppliers", operation="list_suppliers"
+        )
 
     @server.tool(
         name="wb_analytics_summary",
@@ -300,7 +380,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         try:
             combined = await gateway.request(
                 authorization=auth,
-                path="/statistics/report/combined",
+                path="/agent/statistics/report/combined",
                 params={"supplier_id_wb": supplier_id_wb, **period},
                 request_id=_request_id(ctx),
             )
@@ -315,19 +395,22 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 try:
                     finance = await gateway.request(
                         authorization=auth,
-                        path="/financial_report/dashboard/v2",
+                        path="/agent/financial_report/dashboard/v2",
                         params={"supplier_id_wb": supplier_id_wb, **period},
                         request_id=_request_id(ctx),
                     )
                     result["finance"] = _compact(finance)
                 except GatewayError as error:
-                    result["finance"] = {"ok": False, "error": _gateway_error(error)["error"]}
+                    result["finance"] = {
+                        "ok": False,
+                        "error": _gateway_error(error)["error"],
+                    }
                     warnings.append("finance_unavailable_for_current_entitlement")
             if include_price_table:
                 try:
                     prices = await gateway.request(
                         authorization=auth,
-                        path="/price_management",
+                        path="/agent/price_management",
                         params={"supplier_id_wb": supplier_id_wb},
                         request_id=_request_id(ctx),
                     )
@@ -385,13 +468,15 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             try:
                 rows = await gateway.request(
                     authorization=auth,
-                    path="/open_methods/competitors",
+                    path="/agent/open_methods/competitors",
                     params={"nm_id": nm_id},
                     request_id=_request_id(ctx),
                 )
             except GatewayError as error:
                 return _gateway_error(error)
-            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            if not isinstance(rows, list) or any(
+                not isinstance(row, dict) for row in rows
+            ):
                 return _gateway_error(GatewayError("upstream_invalid_json"))
             source = "seller_open_methods"
         if not rows:
@@ -494,7 +579,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 payload=payload,
             )
         except ValueError as error:
-            return _input_error(str(error), "Параметры операции не прошли безопасную проверку.")
+            return _input_error(
+                str(error), "Параметры операции не прошли безопасную проверку."
+            )
         try:
             data = await gateway.request(
                 authorization=auth,
@@ -559,7 +646,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         try:
             data = await gateway.request(
                 authorization=auth,
-                path=f"/statistics/update/{supplier_id_wb}",
+                path=f"/agent/statistics/update/{supplier_id_wb}",
                 method="POST",
                 params={"period": period},
                 request_id=_request_id(ctx),
@@ -594,9 +681,14 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         cost_price: float | None = None,
         target_margin_percent: float | None = None,
         target_position: str = "median",
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
         if len(competitor_prices) > 500:
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "too_many_competitor_prices",
                 "Передайте не более 500 цен конкурентов за один расчёт.",
             )
@@ -614,7 +706,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 ),
             }
         except ValueError as error:
-            return _input_error("invalid_competitive_price_input", str(error))
+            return _input_error_for_auth(
+                auth, "invalid_competitive_price_input", str(error)
+            )
 
     @server.tool(
         name="wb_sales_by_region",
@@ -687,7 +781,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             try:
                 payload = await gateway.request(
                     authorization=auth,
-                    path="/statistics/sales/by-region/daily",
+                    path="/agent/statistics/sales/by-region/daily",
                     params={
                         "supplier_id_wb": supplier_id_wb,
                         "nm_id": nm_id,
@@ -698,13 +792,22 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             except GatewayError as error:
                 return _gateway_error(error)
             if not isinstance(payload, list) or any(
-                not isinstance(row, dict) or "sales_records" not in row
-                or "sales_records_value" not in row for row in payload
+                not isinstance(row, dict)
+                or "sales_records" not in row
+                or "sales_records_value" not in row
+                for row in payload
             ):
-                return _input_error("invalid_regional_daily_response", "Seller вернул несовместимый дневной ряд.")
+                return _input_error(
+                    "invalid_regional_daily_response",
+                    "Seller вернул несовместимый дневной ряд.",
+                )
             coverage = "stored_records_in_period"
             selected_rows = [
-                {**row, "sales": row["sales_records"], "revenue": row["sales_records_value"]}
+                {
+                    **row,
+                    "sales": row["sales_records"],
+                    "revenue": row["sales_records_value"],
+                }
                 for row in payload
             ]
         if len(selected_rows) > 5000:
@@ -722,7 +825,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         result = aggregate_sales_by_region(rows=selected_rows)
         if source == "seller_regional_daily_records":
             record_names = {
-                "sales": "sales_records", "revenue": "sales_records_value",
+                "sales": "sales_records",
+                "revenue": "sales_records_value",
                 "sales_share_percent": "records_share_percent",
                 "revenue_share_percent": "records_value_share_percent",
             }
@@ -731,7 +835,8 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 for row in result["regions"]
             ]
             result["totals"] = {
-                record_names.get(key, key): value for key, value in result["totals"].items()
+                record_names.get(key, key): value
+                for key, value in result["totals"].items()
             }
             result["assumption"] = (
                 "Записи Sales включают возвраты и сторно; суммы finished_price не равны чистой выручке. "
@@ -772,14 +877,21 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         date_to: str | None = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
         source = "provided_rows"
         coverage = "provided_rows"
         if sales_rows is None:
-            auth = _auth_header(ctx, settings)
             if not _valid_positive_id(supplier_id_wb) or not _valid_positive_id(nm_id):
-                return _input_error("source_required", "Передайте sales_rows или supplier_id_wb и nm_id.")
+                return _input_error(
+                    "source_required",
+                    "Передайте sales_rows или supplier_id_wb и nm_id.",
+                )
             if not date_from or not date_to:
-                return _input_error("invalid_period", "Для чтения Seller укажите date_from и date_to.")
+                return _input_error(
+                    "invalid_period", "Для чтения Seller укажите date_from и date_to."
+                )
             try:
                 period = _validate_period(date_from, date_to)
             except ValueError as error:
@@ -787,16 +899,22 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             if auth is None:
                 return _auth_error()
             if is_sandbox_authorization(auth):
-                return sandbox_error("source_required", "В песочнице передайте синтетические sales_rows.")
+                return sandbox_error(
+                    "source_required", "В песочнице передайте синтетические sales_rows."
+                )
             try:
                 payload = await gateway.request(
                     authorization=auth,
-                    path="/statistics/sales/by-region/daily",
+                    path="/agent/statistics/sales/by-region/daily",
                     params={
                         "supplier_id_wb": supplier_id_wb,
                         "nm_id": nm_id,
                         **period,
-                        **({"region": region.strip()} if region and region.strip() else {}),
+                        **(
+                            {"region": region.strip()}
+                            if region and region.strip()
+                            else {}
+                        ),
                     },
                     request_id=_request_id(ctx),
                 )
@@ -806,11 +924,15 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 not isinstance(row, dict) or "sales_records" not in row
                 for row in payload
             ):
-                return _input_error("invalid_regional_daily_response", "Seller вернул несовместимый дневной ряд.")
+                return _input_error(
+                    "invalid_regional_daily_response",
+                    "Seller вернул несовместимый дневной ряд.",
+                )
             source = "seller_regional_daily_records"
             coverage = "stored_records_in_period"
             sales_rows = [
-                {**row, "sales": row["sales_records"]} for row in payload
+                {**row, "sales": row["sales_records"]}
+                for row in payload
                 if _as_int_value(row.get("nm_id")) == nm_id
             ]
         if len(sales_rows) > 5000 or len(weather_rows) > 5000:
@@ -830,12 +952,15 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "matched_observations": len(observations),
             "source": source,
             "coverage": coverage,
-            "metric": "sales_records" if source == "seller_regional_daily_records" else "provided_sales",
+            "metric": "sales_records"
+            if source == "seller_regional_daily_records"
+            else "provided_sales",
             "sampling_caveat": "Расчёт использует только совпавшие даты; отсутствующие дни не считаются нулевыми продажами.",
             "seller_source_caveat": (
                 "Число записей Sales включает возвраты и сторно и не равно чистым продажам. "
                 "Регион взят из записи Sales; полнота загрузки WB отдельно не проверяется."
-                if source == "seller_regional_daily_records" else None
+                if source == "seller_regional_daily_records"
+                else None
             ),
             "data": _compact(result),
         }
@@ -860,14 +985,20 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         keywords: list[str],
         competitor_titles: list[str] | None = None,
         characteristics: dict[str, Any] | None = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
+        auth = _auth_header(ctx, settings)
+        if auth is None:
+            return _auth_error()
         if len(title) > 1000 or len(description) > 20_000 or len(keywords) > 200:
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "seo_input_too_large",
                 "Сократите заголовок, описание или список ключевых слов до поддерживаемого размера.",
             )
         if competitor_titles is not None and len(competitor_titles) > 200:
-            return _input_error(
+            return _input_error_for_auth(
+                auth,
                 "too_many_competitor_titles",
                 "Передайте не более 200 заголовков конкурентов.",
             )
@@ -920,13 +1051,25 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         try:
             data = await gateway.request(
                 authorization=auth,
-                path="/price_management/stocks-report/wb-warehouses",
+                path="/agent/price_management/stocks-report/wb-warehouses",
                 method="POST",
-                params={"supplier_id_wb": supplier_id_wb, "include_fbs_stocks": include_fbs_stocks},
-                json={"nmIds": nm_ids, "chrtIds": chrt_ids, "limit": 250000, "offset": 0},
+                params={
+                    "supplier_id_wb": supplier_id_wb,
+                    "include_fbs_stocks": include_fbs_stocks,
+                },
+                json={
+                    "nmIds": nm_ids,
+                    "chrtIds": chrt_ids,
+                    "limit": 250000,
+                    "offset": 0,
+                },
                 request_id=_request_id(ctx),
             )
-            return {"ok": True, "supplier_id_wb": supplier_id_wb, "data": _compact(data)}
+            return {
+                "ok": True,
+                "supplier_id_wb": supplier_id_wb,
+                "data": _compact(data),
+            }
         except GatewayError as error:
             if error.code == "not_found":
                 return {
@@ -967,31 +1110,37 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         target_margin_percent: float | None = None,
     ) -> dict[str, Any]:
         try:
-            return {"ok": True, **unit_economics(
-                price=price,
-                cost_price=cost_price,
-                commission_percent=commission_percent,
-                logistics_per_unit=logistics_per_unit,
-                storage_per_unit=storage_per_unit,
-                advertising_per_unit=advertising_per_unit,
-                tax_percent=tax_percent,
-                other_costs_per_unit=other_costs_per_unit,
-                discount_percent=discount_percent,
-                target_margin_percent=target_margin_percent,
-            )}
+            return {
+                "ok": True,
+                **unit_economics(
+                    price=price,
+                    cost_price=cost_price,
+                    commission_percent=commission_percent,
+                    logistics_per_unit=logistics_per_unit,
+                    storage_per_unit=storage_per_unit,
+                    advertising_per_unit=advertising_per_unit,
+                    tax_percent=tax_percent,
+                    other_costs_per_unit=other_costs_per_unit,
+                    discount_percent=discount_percent,
+                    target_margin_percent=target_margin_percent,
+                ),
+            }
         except ValueError as error:
-            return {"ok": False, "error": {"code": "invalid_calculator_input", "message": str(error)}}
+            return {
+                "ok": False,
+                "error": {"code": "invalid_calculator_input", "message": str(error)},
+            }
 
     @server.tool(
         name="wb_upload_cost_price",
         title="Загрузить себестоимость товара",
         description=(
             "Записывает себестоимость одного товара в Seller для указанного поставщика. "
-            "Выполняется сразу по явным supplier_id_wb, nm_id и cost_price; отдельный confirm-вызов не нужен."
+            "Перед записью требует явное confirm=true; повторный вызов перезаписывает значение."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
-            destructiveHint=False,
+            destructiveHint=True,
             idempotentHint=True,
             openWorldHint=False,
         ),
@@ -1000,6 +1149,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         supplier_id_wb: int,
         nm_id: int,
         cost_price: float,
+        confirm: bool = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -1018,6 +1168,22 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "invalid_cost_price_input",
                 "supplier_id_wb и nm_id должны быть положительными, себестоимость — неотрицательной.",
             )
+        if confirm is not True:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "confirmation_required",
+                    "message": (
+                        "Подтвердите перезапись себестоимости, повторив вызов с "
+                        "confirm=true."
+                    ),
+                },
+                "requested": {
+                    "supplier_id_wb": supplier_id_wb,
+                    "nm_id": nm_id,
+                    "cost_price": normalized_cost_price,
+                },
+            }
         if auth is None:
             return _auth_error()
         if is_sandbox_authorization(auth):
@@ -1032,10 +1198,14 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         try:
             data = await gateway.request(
                 authorization=auth,
-                path="/price_management/cost_price",
+                path="/agent/price_management/cost_price",
                 method="PUT",
                 params={"supplier_id_wb": supplier_id_wb},
-                json={"nm_id": nm_id, "cost_price": normalized_cost_price},
+                json={
+                    "nm_id": nm_id,
+                    "cost_price": normalized_cost_price,
+                    "confirm": True,
+                },
                 request_id=_request_id(ctx),
             )
             if not isinstance(data, dict):
@@ -1079,15 +1249,21 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         inbound_qty: int = 0,
     ) -> dict[str, Any]:
         try:
-            return {"ok": True, **replenishment_math(
-                daily_sales=daily_sales,
-                current_stock=current_stock,
-                target_days=target_days,
-                safety_days=safety_days,
-                inbound_qty=inbound_qty,
-            )}
+            return {
+                "ok": True,
+                **replenishment_math(
+                    daily_sales=daily_sales,
+                    current_stock=current_stock,
+                    target_days=target_days,
+                    safety_days=safety_days,
+                    inbound_qty=inbound_qty,
+                ),
+            }
         except ValueError as error:
-            return {"ok": False, "error": {"code": "invalid_replenishment_input", "message": str(error)}}
+            return {
+                "ok": False,
+                "error": {"code": "invalid_replenishment_input", "message": str(error)},
+            }
 
     @server.tool(
         name="wb_inventory_forecast",
@@ -1127,10 +1303,14 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             if nm_ids is not None:
                 allowed = set(nm_ids)
                 deficit_rows = [
-                    row for row in deficit_rows if _as_int_value(row.get("nm_id")) in allowed
+                    row
+                    for row in deficit_rows
+                    if _as_int_value(row.get("nm_id")) in allowed
                 ]
                 stock_rows = [
-                    row for row in stock_rows if _as_int_value(row.get("nmId")) in allowed
+                    row
+                    for row in stock_rows
+                    if _as_int_value(row.get("nmId")) in allowed
                 ]
             forecast = inventory_forecast(
                 deficit_rows=deficit_rows,
@@ -1147,11 +1327,17 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         try:
             deficits = await gateway.request(
                 authorization=auth,
-                path="/statistics/orders",
+                path="/agent/statistics/orders",
                 params={"supplier_id_wb": supplier_id_wb},
                 request_id=_request_id(ctx),
             )
-            deficit_rows = deficits if isinstance(deficits, list) else deficits.get("data", []) if isinstance(deficits, dict) else []
+            deficit_rows = (
+                deficits
+                if isinstance(deficits, list)
+                else deficits.get("data", [])
+                if isinstance(deficits, dict)
+                else []
+            )
             if nm_ids is not None:
                 allowed = set(nm_ids)
                 deficit_rows = [
@@ -1160,21 +1346,37 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     if isinstance(row, dict)
                     and _as_int_value(row.get("nm_id", row.get("nmId"))) in allowed
                 ]
-            selected_ids = [row.get("nm_id", row.get("nmId")) for row in deficit_rows if isinstance(row, dict)]
-            selected_ids = [int(value) for value in selected_ids if value is not None][:100]
+            selected_ids = [
+                row.get("nm_id", row.get("nmId"))
+                for row in deficit_rows
+                if isinstance(row, dict)
+            ]
+            selected_ids = [int(value) for value in selected_ids if value is not None][
+                :100
+            ]
             stock_rows: list[dict[str, Any]] = []
             stock_status = "not_requested"
             if selected_ids:
                 try:
                     stocks = await gateway.request(
                         authorization=auth,
-                        path="/price_management/stocks-report/wb-warehouses",
+                        path="/agent/price_management/stocks-report/wb-warehouses",
                         method="POST",
-                        params={"supplier_id_wb": supplier_id_wb, "include_fbs_stocks": True},
-                        json={"nmIds": selected_ids, "chrtIds": None, "limit": 250000, "offset": 0},
+                        params={
+                            "supplier_id_wb": supplier_id_wb,
+                            "include_fbs_stocks": True,
+                        },
+                        json={
+                            "nmIds": selected_ids,
+                            "chrtIds": None,
+                            "limit": 250000,
+                            "offset": 0,
+                        },
                         request_id=_request_id(ctx),
                     )
-                    stock_rows = stocks.get("data", []) if isinstance(stocks, dict) else []
+                    stock_rows = (
+                        stocks.get("data", []) if isinstance(stocks, dict) else []
+                    )
                     stock_status = "ok"
                 except GatewayError as error:
                     stock_status = (
@@ -1183,11 +1385,15 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                         else error.code
                     )
             size_status = "not_requested"
-            if stock_rows and any(row.get("size") for row in deficit_rows if isinstance(row, dict)):
+            if stock_rows and any(
+                row.get("size") for row in deficit_rows if isinstance(row, dict)
+            ):
                 try:
                     cards = await gateway.request(
-                        authorization=auth, path="/open_methods/get_cards_new_detail",
-                        method="POST", json={"nm_ids": list(dict.fromkeys(selected_ids))},
+                        authorization=auth,
+                        path="/agent/open_methods/get_cards_new_detail",
+                        method="POST",
+                        json={"nm_ids": list(dict.fromkeys(selected_ids))},
                         request_id=_request_id(ctx),
                     )
                     stock_rows = _stock_sizes_from_cards(stock_rows, cards)
@@ -1210,12 +1416,17 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         except GatewayError as error:
             return _gateway_error(error)
         except ValueError as error:
-            return {"ok": False, "error": {"code": "invalid_forecast_input", "message": str(error)}}
+            return {
+                "ok": False,
+                "error": {"code": "invalid_forecast_input", "message": str(error)},
+            }
 
     return server
 
 
-def _stock_sizes_from_cards(rows: list[dict[str, Any]], cards: Any) -> list[dict[str, Any]]:
+def _stock_sizes_from_cards(
+    rows: list[dict[str, Any]], cards: Any
+) -> list[dict[str, Any]]:
     sizes: dict[tuple[int, int], str] = {}
     for card in cards if isinstance(cards, list) else []:
         if not isinstance(card, dict):
@@ -1252,6 +1463,8 @@ def _input_error_for_auth(
 ) -> dict[str, Any]:
     if is_sandbox_authorization(authorization):
         return sandbox_error(code, message)
+    if authorization is None:
+        return _auth_error()
     return _input_error(code, message)
 
 
@@ -1332,15 +1545,23 @@ def _join_sales_weather(
             row, "region", "region_name", "regionName", "oblast", "oblastOkrugName"
         )
         normalized_region = row_region.casefold() if row_region else ""
-        if requested_region and normalized_region and normalized_region != requested_region:
+        if (
+            requested_region
+            and normalized_region
+            and normalized_region != requested_region
+        ):
             continue
         observed_date = _row_text(
             row, "date", "day", "weather_date", "weatherDate", "observed_at"
         )
         temperature = _row_number(row, "temperature_c", "temperature", "temp_c")
         if temperature is None:
-            minimum = _row_number(row, "temperature_min_c", "temperatureMinC", "temp_min_c")
-            maximum = _row_number(row, "temperature_max_c", "temperatureMaxC", "temp_max_c")
+            minimum = _row_number(
+                row, "temperature_min_c", "temperatureMinC", "temp_min_c"
+            )
+            maximum = _row_number(
+                row, "temperature_max_c", "temperatureMaxC", "temp_max_c"
+            )
             if minimum is not None and maximum is not None:
                 temperature = (minimum + maximum) / 2
         if not observed_date or temperature is None:
@@ -1355,7 +1576,11 @@ def _join_sales_weather(
             row, "region", "region_name", "regionName", "oblast", "oblastOkrugName"
         )
         normalized_region = row_region.casefold() if row_region else ""
-        if requested_region and normalized_region and normalized_region != requested_region:
+        if (
+            requested_region
+            and normalized_region
+            and normalized_region != requested_region
+        ):
             continue
         observed_date = _row_text(
             row,
@@ -1409,7 +1634,9 @@ def _join_sales_weather(
 def _competitor_title_benchmark(
     *, title: str, competitor_titles: list[str]
 ) -> dict[str, Any]:
-    lengths = [len(" ".join(value.split())) for value in competitor_titles if value.strip()]
+    lengths = [
+        len(" ".join(value.split())) for value in competitor_titles if value.strip()
+    ]
     if not lengths:
         return {
             "competitor_count": 0,
@@ -1456,7 +1683,8 @@ def _auth_header(ctx: Context | None, settings: Settings) -> str | None:
         if isinstance(value, str) and value.startswith("Bearer ") and len(value) > 7:
             return value
     if settings.static_access_token and (
-        settings.allows_static_token or settings.static_access_token == SANDBOX_ACCESS_TOKEN
+        settings.allows_static_token
+        or settings.static_access_token == SANDBOX_ACCESS_TOKEN
     ):
         token = settings.static_access_token
         return token if token.startswith("Bearer ") else f"Bearer {token}"
@@ -1475,14 +1703,91 @@ async def _gateway_result(
     if auth is None:
         return _auth_error()
     try:
-        data = await gateway.request(authorization=auth, path=path, request_id=_request_id(ctx))
+        data = await gateway.request(
+            authorization=auth, path=path, request_id=_request_id(ctx)
+        )
         return {"ok": True, "operation": operation, "data": _compact(data)}
     except GatewayError as error:
         return _gateway_error(error)
 
 
 def _auth_error() -> dict[str, Any]:
-    return {"ok": False, "error": {"code": "auth_required", "message": "Подключите аккаунт Seller перед запросом данных поставщика."}}
+    return {
+        "ok": False,
+        "error": {
+            "code": "auth_required",
+            "message": "Подключите аккаунт Seller перед запросом данных поставщика.",
+        },
+    }
+
+
+def _oauth_challenge(settings: Settings, *, code: str) -> CallToolResult:
+    public_url = _secure_base_url(settings.public_url)
+    metadata_url = (
+        f"{public_url}/.well-known/oauth-protected-resource/mcp"
+        if public_url
+        else "/.well-known/oauth-protected-resource/mcp"
+    )
+    description = (
+        "Authorization is required to use this Wildberries tool."
+        if code == "auth_required"
+        else "The access token is invalid or expired; reconnect the app."
+    )
+    challenge = (
+        f'Bearer resource_metadata="{metadata_url}", '
+        f'error="invalid_token", error_description="{description}"'
+    )
+    data = {
+        "ok": False,
+        "error": {
+            "code": code,
+            "message": "Подключите приложение заново и повторите запрос.",
+        },
+    }
+    return CallToolResult(
+        content=[
+            TextContent(
+                type="text",
+                text="Для инструмента требуется подключение аккаунта Seller.",
+            )
+        ],
+        structuredContent=data,
+        isError=True,
+        _meta={"mcp/www_authenticate": [challenge]},
+    )
+
+
+def _connection_result(data: Any, *, default_status: str) -> dict[str, Any]:
+    """Return only connection handoff fields; never expose provider credentials."""
+    payload = data if isinstance(data, dict) else {}
+    nested = payload.get("data")
+    if isinstance(nested, dict):
+        payload = nested
+    result: dict[str, Any] = {"ok": True}
+    url = (
+        payload.get("link_url")
+        or payload.get("telegram_url")
+        or payload.get("url")
+        or payload.get("authorization_url")
+    )
+    if isinstance(url, str):
+        safe_url = _safe_handoff_url(url, require_https=True)
+        if safe_url:
+            result["url"] = safe_url
+    status = payload.get("status")
+    result["status"] = (
+        status.strip() if isinstance(status, str) and status.strip() else default_status
+    )
+    if isinstance(payload.get("seller_connected"), bool):
+        result["seller_connected"] = payload["seller_connected"]
+    suppliers = payload.get("suppliers")
+    if isinstance(suppliers, list):
+        result["suppliers"] = _compact(suppliers)
+    if isinstance(payload.get("instructions"), str):
+        result["instructions"] = payload["instructions"][:500]
+    if isinstance(payload.get("expires_in"), int):
+        result["expires_in"] = payload["expires_in"]
+    return result
 
 
 def _gateway_error(error: GatewayError) -> dict[str, Any]:
@@ -1498,10 +1803,6 @@ def _unknown_write_status() -> dict[str, Any]:
         },
         "possibly_applied": True,
     }
-
-
-def _is_identity_boundary_error(error: GatewayError) -> bool:
-    return error.code.startswith("identity_bridge") or error.code == "gateway_https_required"
 
 
 def _request_id(ctx: Context | None) -> str | None:
@@ -1526,13 +1827,6 @@ def _validate_period(date_from: str, date_to: str) -> dict[str, str]:
     return {"date_from": start.isoformat(), "date_to": end.isoformat()}
 
 
-def _with_query(url: str, values: dict[str, Any]) -> str:
-    parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query.update({key: str(value) for key, value in values.items() if value is not None})
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
-
-
 def _safe_handoff_url(url: Any, *, require_https: bool) -> str | None:
     if not isinstance(url, str) or not url.strip():
         return None
@@ -1540,7 +1834,9 @@ def _safe_handoff_url(url: Any, *, require_https: bool) -> str | None:
         parts = urlsplit(url.strip())
         username = parts.username
         password = parts.password
-        query_keys = [key.lower() for key, _ in parse_qsl(parts.query, keep_blank_values=True)]
+        query_keys = [
+            key.lower() for key, _ in parse_qsl(parts.query, keep_blank_values=True)
+        ]
     except ValueError:
         return None
     if parts.scheme not in ({"https"} if require_https else {"http", "https"}):
@@ -1550,15 +1846,20 @@ def _safe_handoff_url(url: Any, *, require_https: bool) -> str | None:
     if any(
         marker in key
         for key in query_keys
-        for marker in ("token", "secret", "password", "authorization", "cookie", "api_key", "apikey")
+        for marker in (
+            "token",
+            "secret",
+            "password",
+            "authorization",
+            "cookie",
+            "api_key",
+            "apikey",
+        )
     ):
         return None
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, parts.fragment))
-
-
-def _is_registration_url(url: str) -> bool:
-    parts = urlsplit(url)
-    return parts.netloc.lower() == "seller.bears.ru" and parts.path.rstrip("/") == "/authentication/registration"
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, parts.query, parts.fragment)
+    )
 
 
 def _secure_base_url(url: Any) -> str | None:
@@ -1572,14 +1873,16 @@ def _secure_base_url(url: Any) -> str | None:
 
 
 class _SellerIdentityTokenVerifier:
-    """Проверяет MCP bearer через Seller identity bridge до выдачи tool surface."""
+    """Проверяет MCP bearer через Seller Gateway agent identity endpoint."""
 
     def __init__(self, gateway: SellerGatewayClient) -> None:
         self.gateway = gateway
 
     async def verify_token(self, token: str) -> AccessToken | None:
-        if not isinstance(token, str) or not token.strip() or any(
-            character.isspace() for character in token
+        if (
+            not isinstance(token, str)
+            or not token.strip()
+            or any(character.isspace() for character in token)
         ):
             return None
         if token == SANDBOX_ACCESS_TOKEN:
@@ -1594,7 +1897,7 @@ class _SellerIdentityTokenVerifier:
             return None
         return AccessToken(
             token=token,
-            client_id="seller-identity-bridge",
+            client_id="agent-subject",
             scopes=_MCP_SCOPES,
         )
 
@@ -1632,6 +1935,14 @@ def _compact(value: Any, *, depth: int = 0) -> Any:
                     "api_key",
                     "apikey",
                     "credential",
+                    "user_id",
+                    "phone",
+                    "email",
+                    "address",
+                    "customer",
+                    "username",
+                    "user_name",
+                    "passport",
                 )
             ):
                 continue

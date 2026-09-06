@@ -1,12 +1,13 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "Русскоязычный плагин Wildberries: аналитика, отзывы, конкуренты, SEO, карточки, фото, регионы, погода, юнит-экономика и прогноз пополнения.",
   "author": {
-    "name": "BearsCLOUD",
-    "url": "https://github.com/BearsCLOUD"
+    "name": "ООО «ОУПЕН ГРУПП»",
+    "email": "office@nr66.ru",
+    "url": "https://wb.seller.bears.ru"
   },
-  "homepage": "https://github.com/BearsCLOUD/wildberries-agent-integration",
+  "homepage": "https://wb.seller.bears.ru/",
   "repository": "https://github.com/BearsCLOUD/wildberries-agent-integration",
   "license": "MIT",
   "keywords": [

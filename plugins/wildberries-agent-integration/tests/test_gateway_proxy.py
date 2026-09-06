@@ -36,7 +36,7 @@ def test_gateway_request_contains_no_caller_controlled_url_method_or_token() -> 
     )
 
     assert request == {
-        "path": "/statistics/tape/v2",
+        "path": "/agent/statistics/tape/v2",
         "method": "GET",
         "params": {
             "supplier_id_wb": 31460,
@@ -53,8 +53,16 @@ def test_gateway_request_contains_no_caller_controlled_url_method_or_token() -> 
     ("operation", "payload", "error"),
     [
         ("unknown", {}, "proxy_operation_not_allowed"),
-        ("seller_tape", {"nm_id": 123456789, "access_token": "raw"}, "proxy_payload_not_allowed"),
-        ("seller_tape", {"nm_id": 123456789, "path": "https://evil.example"}, "proxy_payload_not_allowed"),
+        (
+            "seller_tape",
+            {"nm_id": 123456789, "access_token": "raw"},
+            "proxy_payload_not_allowed",
+        ),
+        (
+            "seller_tape",
+            {"nm_id": 123456789, "path": "https://evil.example"},
+            "proxy_payload_not_allowed",
+        ),
         ("seller_tape", {"nm_id": 123456789, "limit": 1001}, "proxy_payload_invalid"),
     ],
 )
@@ -76,7 +84,7 @@ def test_supplier_scoped_body_is_fixed_to_the_selected_supplier() -> None:
         payload={"date_from": "2026-08-01", "date_to": "2026-08-24"},
     )
 
-    assert request["path"] == "/integration-wb/kt/statistics/period"
+    assert request["path"] == "/agent/integration-wb/kt/statistics/period"
     assert request["method"] == "POST"
     assert request["params"] == {"supplier_id_wb": 31460}
     assert request["json"] == {"date_from": "2026-08-01", "date_to": "2026-08-24"}
@@ -90,12 +98,13 @@ def test_analytics_refresh_status_uses_existing_seller_queue_contract() -> None:
     )
 
     assert status == {
-        "path": "/suppliers_analytics/status_update/31460",
+        "path": "/agent/suppliers_analytics/status_update/31460",
         "method": "GET",
         "params": {"type_update": "statistics"},
         "json": None,
         "requires_supplier": True,
     }
+
 
 def test_feedback_operations_use_owned_supplier_and_bounded_inputs() -> None:
     feedbacks = build_gateway_request(
@@ -110,7 +119,7 @@ def test_feedback_operations_use_owned_supplier_and_bounded_inputs() -> None:
     )
 
     assert feedbacks == {
-        "path": "/feedbacks/get_feedbacks",
+        "path": "/agent/feedbacks/get_feedbacks",
         "method": "GET",
         "params": {
             "supplier_id_wb": 31460,
@@ -124,7 +133,7 @@ def test_feedback_operations_use_owned_supplier_and_bounded_inputs() -> None:
         "requires_supplier": True,
     }
     assert average == {
-        "path": "/feedbacks/average_valuation",
+        "path": "/agent/feedbacks/average_valuation",
         "method": "POST",
         "params": {"supplier_id_wb": 31460},
         "json": [123456789, 987654321],
@@ -147,14 +156,14 @@ def test_generic_wb_api_routes_are_supplier_scoped_and_bounded() -> None:
     )
 
     assert capabilities == {
-        "path": "/suppliers/31460/wb/capabilities",
+        "path": "/agent/suppliers/31460/wb/capabilities",
         "method": "GET",
         "params": {},
         "json": None,
         "requires_supplier": True,
     }
     assert operation == {
-        "path": "/suppliers/31460/wb/operations/stats.orders",
+        "path": "/agent/suppliers/31460/wb/operations/stats.orders",
         "method": "POST",
         "params": {},
         "json": {"payload": {"date_from": "2026-08-01", "date_to": "2026-08-24"}},
@@ -189,13 +198,18 @@ def test_feedback_operation_rejects_unbounded_or_ambiguous_inputs(
         ("wb_api_operation", {"operation_id": "Stats.Orders", "payload": {}}),
         ("wb_api_operation", {"operation_id": "stats/orders", "payload": {}}),
         ("wb_api_operation", {"operation_id": "stats.orders"}),
-        ("wb_api_operation", {"operation_id": "stats.orders", "payload": {"method": "GET"}}),
+        (
+            "wb_api_operation",
+            {"operation_id": "stats.orders", "payload": {"method": "GET"}},
+        ),
     ],
 )
 def test_generic_wb_api_routes_reject_untrusted_controls(
     operation: str, payload: dict[str, object]
 ) -> None:
-    with pytest.raises(ValueError, match="proxy_payload_invalid|proxy_payload_not_allowed"):
+    with pytest.raises(
+        ValueError, match="proxy_payload_invalid|proxy_payload_not_allowed"
+    ):
         build_gateway_request(
             operation=operation,
             supplier_id_wb=31460,

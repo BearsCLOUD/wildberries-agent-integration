@@ -19,17 +19,21 @@ class GatewayError(Exception):
 
 
 class SellerGatewayClient:
-    """Small, credential-preserving client for the authenticated Seller gateway."""
+    """Small client that forwards the caller OAuth bearer to Seller Gateway."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
     async def verify_agent_token(self, authorization: str) -> None:
-        """Reject an invalid public MCP bearer before exposing authenticated tools."""
+        """Verify an agent bearer without requiring a linked Seller supplier."""
         if not authorization.startswith("Bearer "):
             raise GatewayError("auth_required", status=401)
-        if self.settings.requires_identity_bridge:
-            await self._resolve_authorization(authorization, request_id=None)
+        await self.request(
+            authorization=authorization,
+            path="/agent/identity",
+            method="GET",
+            request_id=None,
+        )
 
     async def request(
         self,
@@ -55,22 +59,36 @@ class SellerGatewayClient:
                 else "gateway_url_invalid"
             )
 
-        gateway_authorization = await self._resolve_authorization(
-            authorization, request_id
+        if not path.lstrip("/").startswith("agent/"):
+            path = f"/agent/{path.lstrip('/')}"
+        return await self._request_http(
+            authorization=authorization,
+            path=path,
+            method=method,
+            params=params,
+            json=json,
+            request_id=request_id,
         )
 
-        headers = {"Authorization": gateway_authorization}
-        if self.settings.requires_identity_bridge:
-            # Seller Gateway validates this opaque bearer against its own OAuth
-            # record before applying the free read-only entitlement.  It is not
-            # a caller-controlled entitlement claim.
-            headers["X-Agent-Authorization"] = authorization
+    async def _request_http(
+        self,
+        *,
+        authorization: str,
+        path: str,
+        method: str = "GET",
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | list[int] | None = None,
+        request_id: str | None = None,
+    ) -> Any:
+        headers = {"Authorization": authorization}
         if request_id:
             headers["X-Request-ID"] = request_id
 
         url = f"{self.settings.gateway_url}/{path.lstrip('/')}"
         try:
-            async with httpx.AsyncClient(timeout=self.settings.timeout_seconds) as client:
+            async with httpx.AsyncClient(
+                timeout=self.settings.timeout_seconds
+            ) as client:
                 response = await client.request(
                     method=method,
                     url=url,
@@ -84,58 +102,24 @@ class SellerGatewayClient:
             raise GatewayError("upstream_unavailable") from error
 
         if response.status_code >= 400:
-            raise GatewayError(
-                _status_code(response.status_code), status=response.status_code
-            )
+            error_code = _status_code(response.status_code)
+            try:
+                detail = response.json().get("detail")
+            except (AttributeError, ValueError):
+                detail = None
+            if detail in {
+                "seller_link_required",
+                "seller_account_unavailable",
+                "agent_route_not_allowed",
+            }:
+                error_code = detail
+            raise GatewayError(error_code, status=response.status_code)
         if response.status_code == 204 or not response.content:
             return {}
         try:
             return response.json()
         except ValueError as error:
             raise GatewayError("upstream_invalid_json") from error
-
-    async def _resolve_authorization(
-        self, authorization: str, request_id: str | None
-    ) -> str:
-        if not self.settings.requires_identity_bridge:
-            return authorization
-        if not self.settings.identity_bridge_url:
-            raise GatewayError("identity_bridge_not_configured")
-        if not _safe_service_url(self.settings.identity_bridge_url, require_https=True):
-            raise GatewayError("identity_bridge_https_required")
-
-        headers = {
-            "Authorization": authorization,
-            "X-Identity-Audience": "seller-gateway",
-        }
-        if request_id:
-            headers["X-Request-ID"] = request_id
-        try:
-            async with httpx.AsyncClient(timeout=self.settings.timeout_seconds) as client:
-                response = await client.post(
-                    self.settings.identity_bridge_url,
-                    headers=headers,
-                )
-        except httpx.TimeoutException as error:
-            raise GatewayError("identity_bridge_timeout") from error
-        except httpx.RequestError as error:
-            raise GatewayError("identity_bridge_unavailable") from error
-
-        if response.status_code >= 400:
-            raise GatewayError("identity_bridge_rejected", status=response.status_code)
-        try:
-            payload = response.json()
-        except ValueError as error:
-            raise GatewayError("identity_bridge_invalid_json") from error
-        token = payload.get("seller_access_token") or payload.get("access_token")
-        if not isinstance(token, str) or not token.strip():
-            raise GatewayError("identity_bridge_missing_token")
-        token = token.strip()
-        if token.lower().startswith("bearer "):
-            token = token[7:].strip()
-        if not token or any(character.isspace() for character in token):
-            raise GatewayError("identity_bridge_invalid_token")
-        return f"Bearer {token}"
 
 
 def _status_code(status: int) -> str:

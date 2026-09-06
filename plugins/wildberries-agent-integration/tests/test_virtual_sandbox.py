@@ -25,41 +25,85 @@ def _sandbox_server():
 def test_weather_reads_seller_sales_when_rows_omitted(monkeypatch) -> None:
     calls = []
 
+    async def verify(*_args, **_kwargs):
+        return None
+
     async def request(self, **kwargs):  # noqa: ARG001
         calls.append(kwargs)
-        return [{"nm_id": 123, "date": "2026-08-01", "region_name": "Пермь", "sales_records": 3}]
+        return [
+            {
+                "nm_id": 123,
+                "date": "2026-08-01",
+                "region_name": "Пермь",
+                "sales_records": 3,
+            }
+        ]
 
     monkeypatch.setattr(SellerGatewayClient, "request", request)
-    monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
-    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
-        "supplier_id_wb": 1, "nm_id": 123,
-        "date_from": "2026-08-01", "date_to": "2026-08-02",
-        "region": "Пермь",
-        "weather_rows": [{"date": "2026-08-01", "region": "Пермь", "temperature_c": 20}],
-    }))
+    monkeypatch.setattr(
+        "wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test"
+    )
+    monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", verify)
+    _, result = asyncio.run(
+        _sandbox_server().call_tool(
+            "wb_sales_weather_impact",
+            {
+                "supplier_id_wb": 1,
+                "nm_id": 123,
+                "date_from": "2026-08-01",
+                "date_to": "2026-08-02",
+                "region": "Пермь",
+                "weather_rows": [
+                    {"date": "2026-08-01", "region": "Пермь", "temperature_c": 20}
+                ],
+            },
+        )
+    )
     assert result["source"] == "seller_regional_daily_records"
     assert result["matched_observations"] == 1
     assert result["coverage"] == "stored_records_in_period"
     assert result["metric"] == "sales_records"
-    assert calls[0]["path"] == "/statistics/sales/by-region/daily"
+    assert calls[0]["path"] == "/agent/statistics/sales/by-region/daily"
     assert calls[0]["params"]["date_from"] == "2026-08-01"
     assert calls[0]["params"]["region"] == "Пермь"
     assert calls[0]["params"]["supplier_id_wb"] == 1
 
 
-def test_regional_report_labels_sales_records_without_net_sales_claim(monkeypatch) -> None:
+def test_regional_report_labels_sales_records_without_net_sales_claim(
+    monkeypatch,
+) -> None:
+    async def verify(*_args, **_kwargs):
+        return None
+
     async def request(self, **kwargs):  # noqa: ARG001
-        assert kwargs["path"] == "/statistics/sales/by-region/daily"
+        assert kwargs["path"] == "/agent/statistics/sales/by-region/daily"
         assert kwargs["params"]["date_to"] == "2026-08-02"
-        return [{"nm_id": 123, "date": "2026-08-01", "region_name": "Пермь",
-                 "sales_records": 3, "sales_records_value": 90}]
+        return [
+            {
+                "nm_id": 123,
+                "date": "2026-08-01",
+                "region_name": "Пермь",
+                "sales_records": 3,
+                "sales_records_value": 90,
+            }
+        ]
 
     monkeypatch.setattr(SellerGatewayClient, "request", request)
-    monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
-    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_by_region", {
-        "supplier_id_wb": 1, "nm_id": 123,
-        "date_from": "2026-08-01", "date_to": "2026-08-02",
-    }))
+    monkeypatch.setattr(
+        "wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test"
+    )
+    monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", verify)
+    _, result = asyncio.run(
+        _sandbox_server().call_tool(
+            "wb_sales_by_region",
+            {
+                "supplier_id_wb": 1,
+                "nm_id": 123,
+                "date_from": "2026-08-01",
+                "date_to": "2026-08-02",
+            },
+        )
+    )
     assert result["data"]["totals"]["sales_records"] == 3
     assert result["data"]["totals"]["sales_records_value"] == 90
     assert "sales" not in result["data"]["totals"]
@@ -71,10 +115,18 @@ def test_weather_sandbox_does_not_fetch_sales(monkeypatch) -> None:
         raise AssertionError("sandbox must not fetch sales")
 
     monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
-    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
-        "supplier_id_wb": SANDBOX_SUPPLIER_ID, "nm_id": 123,
-        "date_from": "2026-08-01", "date_to": "2026-08-02", "weather_rows": [],
-    }))
+    _, result = asyncio.run(
+        _sandbox_server().call_tool(
+            "wb_sales_weather_impact",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 123,
+                "date_from": "2026-08-01",
+                "date_to": "2026-08-02",
+                "weather_rows": [],
+            },
+        )
+    )
     assert result["ok"] is False
 
 
@@ -83,11 +135,21 @@ def test_weather_rejects_incompatible_daily_response(monkeypatch) -> None:
         return {"unexpected": []}
 
     monkeypatch.setattr(SellerGatewayClient, "request", request)
-    monkeypatch.setattr("wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test")
-    _, result = asyncio.run(_sandbox_server().call_tool("wb_sales_weather_impact", {
-        "supplier_id_wb": 1, "nm_id": 123,
-        "date_from": "2026-08-01", "date_to": "2026-08-02", "weather_rows": [],
-    }))
+    monkeypatch.setattr(
+        "wildberries_agent_mcp.server._auth_header", lambda *args: "Bearer test"
+    )
+    _, result = asyncio.run(
+        _sandbox_server().call_tool(
+            "wb_sales_weather_impact",
+            {
+                "supplier_id_wb": 1,
+                "nm_id": 123,
+                "date_from": "2026-08-01",
+                "date_to": "2026-08-02",
+                "weather_rows": [],
+            },
+        )
+    )
     assert result["ok"] is False
     assert result["error"]["code"] == "invalid_regional_daily_response"
 
@@ -101,9 +163,9 @@ def test_sandbox_token_is_accepted_without_identity_bridge(monkeypatch) -> None:
 
     monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", unexpected_verify)
     access = asyncio.run(
-        _SellerIdentityTokenVerifier(SellerGatewayClient(Settings(environment="production"))).verify_token(
-            SANDBOX_ACCESS_TOKEN
-        )
+        _SellerIdentityTokenVerifier(
+            SellerGatewayClient(Settings(environment="production"))
+        ).verify_token(SANDBOX_ACCESS_TOKEN)
     )
 
     assert access is not None
@@ -129,7 +191,9 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
 
     monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
     monkeypatch.setattr(SellerGatewayClient, "verify_agent_token", unexpected_verify)
-    monkeypatch.setattr("wildberries_agent_mcp.client.httpx.AsyncClient", UnexpectedHttpClient)
+    monkeypatch.setattr(
+        "wildberries_agent_mcp.client.httpx.AsyncClient", UnexpectedHttpClient
+    )
     server = _sandbox_server()
 
     requests = [
@@ -162,7 +226,12 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
         ),
         (
             "wb_upload_cost_price",
-            {"supplier_id_wb": SANDBOX_SUPPLIER_ID, "nm_id": 900000101, "cost_price": 320.0},
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+                "cost_price": 320.0,
+                "confirm": True,
+            },
         ),
         (
             "wb_inventory_forecast",
@@ -186,7 +255,9 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
     assert calls == []
 
 
-def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(monkeypatch) -> None:
+def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(
+    monkeypatch,
+) -> None:
     async def unexpected_request(*args, **kwargs):  # noqa: ARG001
         raise AssertionError("sandbox path must not call Seller Gateway")
 
@@ -196,16 +267,19 @@ def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(monkeypatch)
     _, upload = asyncio.run(
         server.call_tool(
             "wb_upload_cost_price",
-            {"supplier_id_wb": SANDBOX_SUPPLIER_ID, "nm_id": 900000101, "cost_price": 320.0},
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+                "cost_price": 320.0,
+                "confirm": True,
+            },
         )
     )
     assert upload["status"] == "simulated"
     assert upload["mutation"] == "none"
 
     _, wrong_supplier = asyncio.run(
-        server.call_tool(
-            "wb_refresh_analytics", {"supplier_id_wb": 31460, "period": 1}
-        )
+        server.call_tool("wb_refresh_analytics", {"supplier_id_wb": 31460, "period": 1})
     )
     assert wrong_supplier["ok"] is False
     assert wrong_supplier["sandbox"] is True

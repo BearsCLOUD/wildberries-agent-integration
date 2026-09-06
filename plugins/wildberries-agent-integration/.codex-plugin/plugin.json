@@ -1,12 +1,13 @@
 {
   "name": "wildberries-agent-integration",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "Русскоязычный плагин Wildberries: аналитика, отзывы, конкуренты, SEO, карточки, фото, регионы, погода, юнит-экономика и прогноз пополнения.",
   "author": {
-    "name": "BearsCLOUD",
-    "url": "https://github.com/BearsCLOUD"
+    "name": "ООО «ОУПЕН ГРУПП»",
+    "email": "office@nr66.ru",
+    "url": "https://wb.seller.bears.ru"
   },
-  "homepage": "https://github.com/BearsCLOUD/wildberries-agent-integration",
+  "homepage": "https://wb.seller.bears.ru/",
   "repository": "https://github.com/BearsCLOUD/wildberries-agent-integration",
   "license": "MIT",
   "keywords": [
@@ -35,18 +36,18 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Интеграция агента Wildberries",
-    "shortDescription": "Аналитика WB: конкуренты, SEO, карточки, фото и прогноз.",
+    "shortDescription": "Аналитика продавца WB",
     "longDescription": "Подключите аккаунт Seller, анализируйте продажи и конкурентов Wildberries, создавайте карточки и дизайн-системы, готовьте фото товара, исследуйте SEO, регионы и погодные факторы, используйте прокси-доступ, считайте юнит-экономику и прогнозируйте пополнение. Токен поставщика вводится только в защищённом интерфейсе Seller.",
-    "developerName": "BearsCLOUD",
-    "category": "Analytics",
+    "developerName": "ООО «ОУПЕН ГРУПП»",
+    "category": "Business",
     "capabilities": [
       "Analytics",
       "Calculations",
       "MCP"
     ],
-    "websiteURL": "https://github.com/BearsCLOUD/wildberries-agent-integration",
-    "privacyPolicyURL": "https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/PRIVACY.md",
-    "termsOfServiceURL": "https://github.com/BearsCLOUD/wildberries-agent-integration/blob/main/plugins/wildberries-agent-integration/TERMS.md",
+    "websiteURL": "https://wb.seller.bears.ru/",
+    "privacyPolicyURL": "https://wb.seller.bears.ru/privacy",
+    "termsOfServiceURL": "https://wb.seller.bears.ru/terms",
     "defaultPrompt": [
       "Покажи продажи Wildberries за последние 14 дней.",
       "Рассчитай точку безубыточности этого товара.",
