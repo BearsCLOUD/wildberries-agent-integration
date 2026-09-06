@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.29
+
+- Зарегистрирован OpenAI App ID для автоматического подключения опубликованного MCP из Codex-пакета.
+- Подтверждение домена вынесено в секрет окружения; проверочный токен не хранится в исходном коде или пакете публикации.
+
 ## 0.1.28
 
 - Send opaque agent bearers directly to fixed Seller Gateway `/agent/...` routes and remove the obsolete identity-exchange configuration.

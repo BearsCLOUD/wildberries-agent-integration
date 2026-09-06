@@ -1,0 +1,8 @@
+{
+  "apps": {
+    "wildberries-agent-integration": {
+      "id": "asdk_app_6a9dc6ca3af481919802f1a4bd3e3193",
+      "required": true
+    }
+  }
+}
