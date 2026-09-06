@@ -8,7 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
@@ -49,6 +49,33 @@ _OAUTH_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": _MCP_SCOPES}]
 
 class _AgentFastMCP(FastMCP):
     """Advertise the OAuth policy on every tool for ChatGPT account linking."""
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]):
+        result = await super().call_tool(name, arguments)
+        # A bearer can expire after transport authentication but before Seller
+        # handles the operation. Signal account relinking at the protocol level.
+        auth = self.settings.auth
+        if auth is not None and isinstance(result, tuple) and len(result) == 2:
+            content, data = result
+            error = data.get("error") if isinstance(data, dict) else None
+            if isinstance(error, dict) and data.get("ok") is False and (
+                error.get("status") == 401 or error.get("code") == "auth_required"
+            ):
+                resource = str(auth.resource_server_url).rstrip("/")
+                origin = urlsplit(resource)
+                metadata_url = urlunsplit((
+                    origin.scheme, origin.netloc,
+                    f"/.well-known/oauth-protected-resource{origin.path}", "", "",
+                ))
+                return CallToolResult(
+                    content=content,
+                    structuredContent=data,
+                    isError=True,
+                    _meta={"mcp/www_authenticate": [
+                        f'Bearer resource_metadata="{metadata_url}", error="invalid_token"'
+                    ]},
+                )
+        return result
 
     async def list_tools(self):
         tools = await super().list_tools()
