@@ -38,7 +38,12 @@ jobs:
           json.loads(Path('alpic.json').read_text())
           codex = json.loads(Path('.codex-plugin/plugin.json').read_text())
           assert codex['mcpServers'] == './.mcp.json'
-          assert 'apps' not in codex
+          assert codex['apps'] == './.app.json'
+          app = json.loads(Path('.app.json').read_text())
+          assert app['apps']['wildberries-agent-integration'] == {
+              'id': 'asdk_app_6a9dc6ca3af481919802f1a4bd3e3193',
+              'required': True,
+          }
           codex_mcp = json.loads(Path('.mcp.json').read_text())
           assert codex_mcp['mcpServers']['wildberries-agent'] == {
               'type': 'http',
