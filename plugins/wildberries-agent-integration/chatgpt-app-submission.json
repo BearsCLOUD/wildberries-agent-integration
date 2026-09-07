@@ -247,11 +247,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Exercise the reviewer-safe confirmed cost-price workflow.",
-      "user_prompt": "В демо подтверди установку себестоимости 320 ₽ для nm_id 900000101 у поставщика 900000001.",
+      "description": "Exercise the reviewer-safe two-step cost-price workflow.",
+      "user_prompt": "Установи себестоимость 320 ₽ для nm_id 900000101 у поставщика 900000001.",
       "file_attachment_urls": null,
       "tools_triggered": "wb_upload_cost_price",
-      "expected_output": "Requires explicit confirmation and then reports a simulated write with no external mutation.",
+      "expected_output": "First returns confirmation_required with the exact supplier, item, and amount. After a separate user confirmation, repeats with confirm=true and reports a simulated write with no external mutation.",
       "expected_output_url": null
     }
   ],

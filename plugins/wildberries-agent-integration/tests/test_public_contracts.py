@@ -205,6 +205,10 @@ def test_public_legal_pages_identify_operator_without_bank_details() -> None:
             assert "044525104" not in response.text
 
         assert "не передаётся MCP-серверу или OpenAI" in client.get("/privacy").text
+        privacy = client.get("/privacy").text
+        assert "не более 30 дней" in privacy
+        assert "исполнен не позднее 30 дней" in privacy
+        assert "Получатели" in privacy
         assert "явного подтверждения" in client.get("/terms").text
 
 
