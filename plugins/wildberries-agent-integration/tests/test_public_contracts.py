@@ -208,6 +208,17 @@ def test_public_legal_pages_identify_operator_without_bank_details() -> None:
         assert "явного подтверждения" in client.get("/terms").text
 
 
+def test_reviewer_demo_is_public_video() -> None:
+    server = build_server(Settings())
+    with TestClient(server.streamable_http_app()) as client:
+        response = client.get("/reviewer-demo.mp4")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "video/mp4"
+    assert response.headers["cache-control"] == "public, max-age=86400"
+    assert response.content.startswith(b"\x00\x00\x00")
+
+
 def test_public_tool_annotations_keep_private_reads_read_only() -> None:
     server = build_server(Settings(connect_url="https://seller.example/connect"))
     tools = asyncio.run(server.list_tools())

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from math import isfinite
+from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
@@ -10,7 +11,12 @@ from mcp.server.auth.provider import AccessToken
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from starlette.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+)
 
 from .calculations import (
     aggregate_sales_by_region,
@@ -49,6 +55,7 @@ _MCP_SCOPES = ["wildberries-agent-free"]
 _NOAUTH_TOOLS = frozenset({"wb_replenishment_math", "wb_unit_economics"})
 _OAUTH_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": _MCP_SCOPES}]
 _NOAUTH_SECURITY_SCHEMES = [{"type": "noauth"}]
+_REVIEWER_DEMO = Path(__file__).with_name("assets") / "reviewer-demo.mp4"
 
 
 class _AgentFastMCP(FastMCP):
@@ -175,6 +182,14 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.custom_route("/support", methods=["GET"], name="support")
     async def support_route(_: Request) -> HTMLResponse:
         return HTMLResponse(support())
+
+    @server.custom_route("/reviewer-demo.mp4", methods=["GET"], name="reviewer_demo")
+    async def reviewer_demo(_: Request) -> FileResponse:
+        return FileResponse(
+            _REVIEWER_DEMO,
+            media_type="video/mp4",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
 
     @server.custom_route(
         "/.well-known/openai-apps-challenge",
