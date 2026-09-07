@@ -718,7 +718,13 @@ def test_tools_advertise_noauth_or_free_oauth_security_scheme() -> None:
     for tool in tools:
         expected = (
             [{"type": "noauth"}]
-            if tool.name in {"wb_replenishment_math", "wb_unit_economics"}
+            if tool.name
+            in {
+                "wb_competitive_price",
+                "wb_replenishment_math",
+                "wb_seo_analytics",
+                "wb_unit_economics",
+            }
             else [{"type": "oauth2", "scopes": ["wildberries-agent-free"]}]
         )
         assert tool.securitySchemes == expected

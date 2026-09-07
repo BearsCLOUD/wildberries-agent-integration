@@ -48,14 +48,80 @@ from .sandbox import (
     result as sandbox_result,
     suppliers as sandbox_suppliers,
     upload_cost_price as sandbox_upload_cost_price,
+    weather_inputs as sandbox_weather_inputs,
     warehouse_stock as sandbox_warehouse_stock,
 )
 
 _MCP_SCOPES = ["wildberries-agent-free"]
-_NOAUTH_TOOLS = frozenset({"wb_replenishment_math", "wb_unit_economics"})
+_NOAUTH_TOOLS = frozenset(
+    {
+        "wb_competitive_price",
+        "wb_replenishment_math",
+        "wb_seo_analytics",
+        "wb_unit_economics",
+    }
+)
 _OAUTH_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": _MCP_SCOPES}]
 _NOAUTH_SECURITY_SCHEMES = [{"type": "noauth"}]
 _REVIEWER_DEMO = Path(__file__).with_name("assets") / "reviewer-demo.mp4"
+_TOOL_INVOCATION_LABELS = {
+    "wb_connect_supplier": (
+        "Открываю подключение Wildberries",
+        "Подключение Wildberries открыто",
+    ),
+    "wb_connection_status": (
+        "Проверяю подключение Wildberries",
+        "Подключение Wildberries проверено",
+    ),
+    "wb_connect_telegram": (
+        "Открываю подключение Telegram",
+        "Подключение Telegram открыто",
+    ),
+    "wb_list_suppliers": (
+        "Получаю кабинеты Wildberries",
+        "Кабинеты Wildberries получены",
+    ),
+    "wb_analytics_summary": (
+        "Считаю аналитику Wildberries",
+        "Аналитика Wildberries готова",
+    ),
+    "wb_competitor_analysis": (
+        "Сравниваю товары конкурентов",
+        "Сравнение конкурентов готово",
+    ),
+    "wb_wildberries_proxy": (
+        "Получаю данные Wildberries",
+        "Данные Wildberries получены",
+    ),
+    "wb_refresh_analytics": (
+        "Запускаю обновление аналитики",
+        "Обновление аналитики запущено",
+    ),
+    "wb_competitive_price": (
+        "Рассчитываю ценовой коридор",
+        "Ценовой коридор рассчитан",
+    ),
+    "wb_sales_by_region": (
+        "Считаю продажи по регионам",
+        "Продажи по регионам рассчитаны",
+    ),
+    "wb_sales_weather_impact": (
+        "Сопоставляю погоду и продажи",
+        "Связь погоды и продаж рассчитана",
+    ),
+    "wb_seo_analytics": ("Проверяю SEO карточки", "SEO карточки проверено"),
+    "wb_warehouse_stock": ("Получаю остатки по складам", "Остатки по складам получены"),
+    "wb_unit_economics": ("Считаю юнит-экономику", "Юнит-экономика рассчитана"),
+    "wb_upload_cost_price": (
+        "Проверяю запись себестоимости",
+        "Запись себестоимости обработана",
+    ),
+    "wb_replenishment_math": (
+        "Считаю количество пополнения",
+        "Количество пополнения рассчитано",
+    ),
+    "wb_inventory_forecast": ("Строю прогноз пополнения", "Прогноз пополнения готов"),
+}
 
 
 class _AgentFastMCP(FastMCP):
@@ -135,7 +201,13 @@ class _AgentFastMCP(FastMCP):
                 for scheme in source
             ]
             tool.securitySchemes = schemes
-            tool.meta = {**(tool.meta or {}), "securitySchemes": schemes}
+            invoking, invoked = _TOOL_INVOCATION_LABELS[tool.name]
+            tool.meta = {
+                **(tool.meta or {}),
+                "securitySchemes": schemes,
+                "openai/toolInvocation/invoking": invoking,
+                "openai/toolInvocation/invoked": invoked,
+            }
         return tools
 
 
@@ -145,8 +217,17 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     server = _AgentFastMCP(
         name="Интеграция агента Wildberries",
         instructions=(
-            "Используйте аналитику Wildberries в рамках аккаунта Seller. Не помещайте учётные данные "
-            "в запросы и результаты. Для решений сначала используйте калькулятор и прозрачный прогноз пополнения."
+            "Используйте специализированный инструмент приложения для каждого поддерживаемого запроса по Wildberries, "
+            "даже если ответ можно приблизительно посчитать или сформулировать без инструмента. "
+            "Не используйте веб-поиск вместо закрытых данных Seller: при недоступности источника честно сообщите об этом. "
+            "Исключение — публичная погода, которую можно получить из открытого источника и передать в погодный анализ. "
+            "Если supplier_id_wb не указан пользователем, сначала получите доступные кабинеты через wb_list_suppliers; "
+            "не просите внутренний идентификатор, когда кабинет один. Не помещайте учётные данные в аргументы и результаты. "
+            "Календарные периоды считайте в часовом поясе пользователя: сегодня включает текущий день; последние N дней — "
+            "N завершённых календарных дней без текущего дня; если период не указан, используйте 14 завершённых дней. "
+            "Всегда сообщайте точные date_from и date_to. Для расчётов вызывайте детерминированные калькуляторы, "
+            "а для записи себестоимости сначала получите confirmation_required с confirm=false и выполняйте второй вызов "
+            "с confirm=true только после отдельного явного подтверждения пользователя."
         ),
         host=settings.host,
         port=settings.port,
@@ -241,8 +322,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_connect_supplier",
         title="Подключить поставщика Wildberries",
         description=(
-            "Откройте существующий браузерный сценарий Seller для подключения поставщика. Пользователь вводит "
-            "персональный токен Wildberries вне диалога с агентом; этот инструмент никогда не принимает и не возвращает токен."
+            "Вызывайте, когда пользователь хочет подключить, добавить или переподключить кабинет Wildberries. "
+            "Инструмент создаёт безопасный браузерный переход Seller, но сам не завершает подключение. Пользователь вводит "
+            "персональный токен Wildberries только на странице Seller; инструмент никогда не принимает и не возвращает токен. "
+            "Не вызывайте для простой проверки уже существующего подключения — используйте wb_connection_status."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
@@ -252,7 +335,16 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_connect_supplier(
-        supplier_id_wb: int | None = None, ctx: Context | None = None
+        supplier_id_wb: Annotated[
+            int | None,
+            Field(
+                description=(
+                    "Необязательный внутренний идентификатор существующего кабинета Seller для переподключения; "
+                    "не просите его у пользователя при новом подключении."
+                )
+            ),
+        ] = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
         if is_sandbox_authorization(auth):
@@ -284,7 +376,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.tool(
         name="wb_connection_status",
         title="Статус подключения Wildberries",
-        description="Показывает статус подключения текущего аккаунта Seller без учётных данных.",
+        description=(
+            "Вызывайте, когда пользователь спрашивает, подключён ли кабинет Wildberries, или когда данные Seller недоступны. "
+            "Возвращает состояние подключения текущего аккаунта без учётных данных. Не утверждайте, что требуется "
+            "переподключение, пока этот инструмент не вернул соответствующий статус."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -311,7 +407,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.tool(
         name="wb_connect_telegram",
         title="Подключить Telegram",
-        description="Запускает существующий Seller-сценарий подключения Telegram без передачи секретов агенту.",
+        description=(
+            "Вызывайте, когда пользователь хочет подключить Telegram к Seller для уведомлений. Инструмент только запускает "
+            "безопасный сценарий привязки и не настраивает типы, расписание или правила уведомлений. Не обещайте, что правила "
+            "уведомлений изменены, если отдельного инструмента для этого нет."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
             destructiveHint=False,
@@ -340,7 +440,11 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.tool(
         name="wb_list_suppliers",
         title="Список подключённых поставщиков",
-        description="Показывает поставщиков текущего пользователя Seller без учётных данных и значений токенов.",
+        description=(
+            "Вызывайте, когда пользователь просит показать подключённые кабинеты Wildberries, а также перед инструментом "
+            "с обязательным supplier_id_wb, если кабинет ещё не определён. Возвращает только доступные текущему пользователю "
+            "кабинеты без учётных данных и токенов; если кабинет один, используйте его без дополнительного вопроса."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -359,7 +463,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.tool(
         name="wb_analytics_summary",
         title="Сводка аналитики Wildberries",
-        description="Читает продажи и заказы, а также доступные финансовые и ценовые показатели за ограниченный период.",
+        description=(
+            "Вызывайте для пользовательских запросов о заказах, продажах, возвратах, выручке, комиссиях, логистике или общей "
+            "аналитике торговли за период. Не оценивайте эти показатели самостоятельно и не заменяйте их веб-поиском. "
+            "date_from и date_to включительны; относительный период преобразуйте по общим правилам сервера и сообщите точные даты. "
+            "Разницу между выручкой и расходами WB не называйте чистой прибылью без себестоимости, налогов и прочих затрат."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -368,11 +477,32 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_analytics_summary(
-        supplier_id_wb: int,
-        date_from: str,
-        date_to: str,
-        include_finance: bool = False,
-        include_price_table: bool = False,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        date_from: Annotated[
+            str,
+            Field(description="Первая включённая дата периода в формате YYYY-MM-DD."),
+        ],
+        date_to: Annotated[
+            str,
+            Field(
+                description="Последняя включённая дата периода в формате YYYY-MM-DD."
+            ),
+        ],
+        include_finance: Annotated[
+            bool,
+            Field(
+                description="Запросить комиссии, логистику и доступные финансовые показатели."
+            ),
+        ] = False,
+        include_price_table: Annotated[
+            bool,
+            Field(description="Дополнительно запросить текущую таблицу цен товаров."),
+        ] = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -446,8 +576,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_competitor_analysis",
         title="Анализ конкурентов Wildberries",
         description=(
-            "Находит похожие товары через существующий источник Seller и сравнивает цены. "
-            "Переданные competitor_rows имеют приоритет; в песочнице доступны только переданные синтетические строки."
+            "Вызывайте, когда пользователь просит сравнить свой товар с похожими предложениями или понять, дороже ли он рынка. "
+            "Инструмент получает похожие товары из принадлежащего Seller источника и рассчитывает прозрачное сравнение цен; "
+            "переданные competitor_rows имеют приоритет. Не заменяйте недоступные закрытые данные веб-поиском и не выдумывайте цены. "
+            "Для расчёта только по уже известному списку цен без поиска товаров используйте wb_competitive_price."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -457,11 +589,30 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_competitor_analysis(
-        supplier_id_wb: int,
-        nm_id: int,
-        competitor_rows: list[dict[str, Any]] | None = None,
-        seller_price: float | None = None,
-        target_position: str = "median",
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        nm_id: Annotated[
+            int, Field(description="Артикул Wildberries (nm_id) товара пользователя.")
+        ],
+        competitor_rows: Annotated[
+            list[dict[str, Any]] | None,
+            Field(
+                description="Необязательные наблюдения конкурентов; каждая строка должна содержать положительную цену."
+            ),
+        ] = None,
+        seller_price: Annotated[
+            float | None,
+            Field(
+                description="Необязательная текущая цена товара пользователя в рублях."
+            ),
+        ] = None,
+        target_position: Annotated[
+            str, Field(description="Целевой ориентир: low, median или high.")
+        ] = "median",
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         if not _valid_positive_id(supplier_id_wb) or not _valid_positive_id(nm_id):
@@ -479,6 +630,16 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 return supplier_error
         rows = competitor_rows or []
         source = "provided_rows"
+        if not rows and sandbox_mode:
+            rows = [
+                {"nm_id": 900000201, "sale_price": 1090.0},
+                {"nm_id": 900000202, "sale_price": 1190.0},
+                {"nm_id": 900000203, "sale_price": 1290.0},
+                {"nm_id": 900000204, "sale_price": 1390.0},
+                {"nm_id": 900000205, "sale_price": 1490.0},
+            ]
+            seller_price = seller_price if seller_price is not None else 1200.0
+            source = "virtual_fixture"
         if not rows and not sandbox_mode:
             try:
                 rows = await gateway.request(
@@ -517,7 +678,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     "competitor_analysis",
                     supplier_id_wb=supplier_id_wb,
                     nm_id=nm_id,
-                    source="provided_rows",
+                    source=source,
                     data=_compact(analysis),
                 )
             return {
@@ -534,8 +695,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_wildberries_proxy",
         title="Разрешённый прокси Wildberries",
         description=(
-            "Выполняет одну из закреплённых операций Seller Gateway от имени выбранного поставщика. "
-            "Агент передаёт только имя операции и данные запроса: URL, HTTP-метод и токен недоступны модели."
+            "Вызывайте этот резервный инструмент для разрешённых чтений Seller/Wildberries, у которых нет специализированного инструмента, "
+            "например отзывов, карточек или статуса обновления. Для аналитики, конкурентов, регионов, остатков и прогнозов "
+            "используйте соответствующий специализированный wb_* инструмент, а не этот прокси. Не заменяйте ошибку закрытого "
+            "источника веб-поиском. Агент передаёт только operation и payload: URL, HTTP-метод и токен модели недоступны."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -545,9 +708,27 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_wildberries_proxy(
-        supplier_id_wb: int,
-        operation: str,
-        payload: dict[str, Any] | None = None,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        operation: Annotated[
+            str,
+            Field(
+                description=(
+                    "Идентификатор одной операции из фиксированного каталога Seller Gateway; "
+                    "для отзывов используйте feedbacks или feedback_average."
+                )
+            ),
+        ],
+        payload: Annotated[
+            dict[str, Any] | None,
+            Field(
+                description="Параметры выбранной операции без URL, HTTP-метода и учётных данных."
+            ),
+        ] = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -619,8 +800,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_refresh_analytics",
         title="Обновить аналитику Wildberries",
         description=(
-            "Ставит обновление статистики выбранного поставщика в существующую очередь Seller. "
-            "Период ограничен 1–366 днями; WB-токен агенту не передаётся."
+            "Вызывайте, когда пользователь просит обновить, синхронизировать или сделать свежей аналитику кабинета. "
+            "Ставит фоновое обновление статистики выбранного поставщика в очередь Seller, но не ждёт завершения отчёта. "
+            "period — число последних дней от 1 до 366; постановка задачи не требует подтверждения и не удаляет данные."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
@@ -630,8 +812,21 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_refresh_analytics(
-        supplier_id_wb: int,
-        period: Annotated[int, Field(strict=True, ge=1, le=366)] = 1,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        period: Annotated[
+            int,
+            Field(
+                strict=True,
+                ge=1,
+                le=366,
+                description="Количество последних календарных дней для обновления, от 1 до 366.",
+            ),
+        ] = 1,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -680,8 +875,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_competitive_price",
         title="Конкурентный ориентир цены",
         description=(
-            "Рассчитывает ценовой коридор по переданной выборке конкурентов и необязательный нижний ориентир по себестоимости и целевой марже. "
-            "Это расчёт без записи цены; комиссии, логистика и прочие расходы в нижний ориентир не входят."
+            "Всегда вызывайте для расчёта конкурентного ценового диапазона по известным ценам, даже если арифметику можно "
+            "выполнить в ответе модели. Инструмент детерминированно рассчитывает межквартильный коридор, позицию цены и целевой "
+            "ориентир, а при наличии себестоимости и маржи — нижнюю границу. Ничего не записывает. Комиссии, логистика и прочие "
+            "расходы в границу не входят; для полной экономики используйте wb_unit_economics."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -691,46 +888,58 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_competitive_price(
-        seller_price: float,
-        competitor_prices: list[float],
-        cost_price: float | None = None,
-        target_margin_percent: float | None = None,
-        target_position: str = "median",
+        seller_price: Annotated[
+            float, Field(description="Текущая цена товара пользователя в рублях.")
+        ],
+        competitor_prices: Annotated[
+            list[float],
+            Field(
+                description="От 1 до 500 известных положительных цен конкурентов в рублях."
+            ),
+        ],
+        cost_price: Annotated[
+            float | None,
+            Field(description="Необязательная себестоимость единицы товара в рублях."),
+        ] = None,
+        target_margin_percent: Annotated[
+            float | None,
+            Field(description="Необязательная целевая маржа в процентах от цены."),
+        ] = None,
+        target_position: Annotated[
+            str,
+            Field(description="Целевой ориентир внутри выборки: low, median или high."),
+        ] = "median",
         ctx: Context | None = None,
     ) -> dict[str, Any]:
-        auth = _auth_header(ctx, settings)
-        if auth is None:
-            return _auth_error()
         if len(competitor_prices) > 500:
-            return _input_error_for_auth(
-                auth,
+            return _input_error(
                 "too_many_competitor_prices",
                 "Передайте не более 500 цен конкурентов за один расчёт.",
             )
         try:
-            return {
-                "ok": True,
-                "data": _compact(
-                    competitive_price_analysis(
-                        seller_price=seller_price,
-                        competitor_prices=competitor_prices,
-                        cost_price=cost_price,
-                        target_margin_percent=target_margin_percent,
-                        target_position=target_position,
-                    )
-                ),
-            }
-        except ValueError as error:
-            return _input_error_for_auth(
-                auth, "invalid_competitive_price_input", str(error)
+            data = _compact(
+                competitive_price_analysis(
+                    seller_price=seller_price,
+                    competitor_prices=competitor_prices,
+                    cost_price=cost_price,
+                    target_margin_percent=target_margin_percent,
+                    target_position=target_position,
+                )
             )
+            if is_sandbox_authorization(_auth_header(ctx, settings)):
+                return sandbox_result("competitive_price", data=data)
+            return {"ok": True, "data": data}
+        except ValueError as error:
+            return _input_error("invalid_competitive_price_input", str(error))
 
     @server.tool(
         name="wb_sales_by_region",
         title="Продажи Wildberries по регионам",
         description=(
-            "Группирует продажи текущего поставщика по регионам за ограниченный период. "
-            "Использует переданные строки либо дневные записи Sales из Seller для nm_id. Записи включают возвраты и сторно, это не чистые продажи."
+            "Вызывайте, когда пользователь спрашивает, где товары продаются лучше или хуже, либо просит продажи по регионам. "
+            "Группирует региональные записи Seller за включительный период date_from—date_to; относительные даты преобразуйте "
+            "по общим правилам сервера и сообщите точный период. Не используйте веб-поиск. Записи Sales включают возвраты и "
+            "сторно и поэтому не являются чистыми продажами."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -740,11 +949,34 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_sales_by_region(
-        supplier_id_wb: int,
-        date_from: str,
-        date_to: str,
-        nm_id: int | None = None,
-        rows: list[dict[str, Any]] | None = None,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        date_from: Annotated[
+            str,
+            Field(description="Первая включённая дата периода в формате YYYY-MM-DD."),
+        ],
+        date_to: Annotated[
+            str,
+            Field(
+                description="Последняя включённая дата периода в формате YYYY-MM-DD."
+            ),
+        ],
+        nm_id: Annotated[
+            int | None,
+            Field(
+                description="Необязательный артикул Wildberries для фильтрации отчёта."
+            ),
+        ] = None,
+        rows: Annotated[
+            list[dict[str, Any]] | None,
+            Field(
+                description="Необязательные подготовленные региональные строки; обычно оставьте пустым для чтения Seller."
+            ),
+        ] = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -871,9 +1103,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_sales_weather_impact",
         title="Связь погоды и продаж",
         description=(
-            "Сопоставляет погодные наблюдения с переданными продажами или дневным числом записей Sales из Seller по supplier_id_wb, nm_id и периоду. "
-            "Оценивает корреляцию температуры с продажами по совпавшим датам и регионам. "
-            "Корреляция не доказывает влияние погоды или причинно-следственную связь."
+            "Вызывайте, когда пользователь просит проверить связь температуры или погоды с продажами товара. Сопоставляет "
+            "публичный погодный ряд с дневными записями Sales из Seller по артикулу, региону и включительному периоду. "
+            "Публичную погоду разрешено получить из открытого источника, но продажи нельзя заменять веб-поиском. "
+            "Всегда сообщайте размер совпавшей выборки и не называйте корреляцию влиянием или причиной."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -883,13 +1116,46 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_sales_weather_impact(
-        weather_rows: list[dict[str, Any]],
-        sales_rows: list[dict[str, Any]] | None = None,
-        region: str | None = None,
-        supplier_id_wb: int | None = None,
-        nm_id: int | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
+        weather_rows: Annotated[
+            list[dict[str, Any]] | None,
+            Field(
+                description="Публичные погодные наблюдения с date, region и temperature_c; в reviewer sandbox можно не передавать."
+            ),
+        ] = None,
+        sales_rows: Annotated[
+            list[dict[str, Any]] | None,
+            Field(
+                description="Необязательный подготовленный ряд продаж; обычно оставьте пустым для чтения Seller."
+            ),
+        ] = None,
+        region: Annotated[
+            str | None,
+            Field(
+                description="Регион или город, одинаково обозначенный в продажах и погодном ряду."
+            ),
+        ] = None,
+        supplier_id_wb: Annotated[
+            int | None,
+            Field(
+                description="Идентификатор кабинета из wb_list_suppliers, обязательный при чтении Seller."
+            ),
+        ] = None,
+        nm_id: Annotated[
+            int | None,
+            Field(description="Артикул Wildberries, обязательный при чтении Seller."),
+        ] = None,
+        date_from: Annotated[
+            str | None,
+            Field(
+                description="Первая включённая дата периода YYYY-MM-DD при чтении Seller."
+            ),
+        ] = None,
+        date_to: Annotated[
+            str | None,
+            Field(
+                description="Последняя включённая дата периода YYYY-MM-DD при чтении Seller."
+            ),
+        ] = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -897,6 +1163,42 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             return _auth_error()
         source = "provided_rows"
         coverage = "provided_rows"
+        sandbox_mode = is_sandbox_authorization(auth)
+        period: dict[str, str] | None = None
+        if date_from and date_to:
+            try:
+                period = _validate_period(date_from, date_to)
+            except ValueError as error:
+                return _input_error_for_auth(auth, "invalid_period", str(error))
+        if sandbox_mode and sales_rows is None:
+            if not _valid_positive_id(supplier_id_wb) or not _valid_positive_id(nm_id):
+                return sandbox_error(
+                    "source_required",
+                    "Укажите supplier_id_wb и nm_id для виртуального погодного анализа.",
+                )
+            supplier_error = sandbox_require_supplier(supplier_id_wb)
+            if supplier_error:
+                return supplier_error
+            if period is None:
+                return sandbox_error(
+                    "invalid_period",
+                    "Укажите date_from и date_to для виртуального погодного анализа.",
+                )
+            sales_rows, default_weather = sandbox_weather_inputs(
+                period=period,
+                region=region,
+                nm_id=nm_id,
+            )
+            if not weather_rows:
+                weather_rows = default_weather
+            source = "virtual_fixture"
+            coverage = "complete"
+        if weather_rows is None:
+            return _input_error_for_auth(
+                auth,
+                "weather_source_required",
+                "Передайте публичные погодные наблюдения в weather_rows.",
+            )
         if sales_rows is None:
             if not _valid_positive_id(supplier_id_wb) or not _valid_positive_id(nm_id):
                 return _input_error(
@@ -907,15 +1209,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 return _input_error(
                     "invalid_period", "Для чтения Seller укажите date_from и date_to."
                 )
-            try:
-                period = _validate_period(date_from, date_to)
-            except ValueError as error:
-                return _input_error("invalid_period", str(error))
-            if auth is None:
-                return _auth_error()
-            if is_sandbox_authorization(auth):
-                return sandbox_error(
-                    "source_required", "В песочнице передайте синтетические sales_rows."
+            if period is None:
+                return _input_error(
+                    "invalid_period", "Для чтения Seller укажите date_from и date_to."
                 )
             try:
                 payload = await gateway.request(
@@ -961,7 +1257,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             region=region,
         )
         result = weather_sales_impact(observations=observations)
-        return {
+        response = {
             "ok": True,
             "region": region,
             "matched_observations": len(observations),
@@ -979,13 +1275,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             ),
             "data": _compact(result),
         }
+        if sandbox_mode:
+            response.pop("ok")
+            return sandbox_result("sales_weather_impact", **response)
+        return response
 
     @server.tool(
         name="wb_seo_analytics",
         title="SEO-анализ карточки Wildberries",
         description=(
-            "Оценивает полноту заголовка, описания, ключевых слов и характеристик по прозрачной эвристике. "
-            "Не обещает позицию в поиске Wildberries и не обращается к алгоритмам маркетплейса."
+            "Всегда вызывайте, когда пользователь просит проверить SEO карточки, оценить заголовок, описание или ключевые "
+            "слова, даже если модель может дать общие советы сама. Возвращает детерминированный score, разбивку и приоритетные "
+            "улучшения по прозрачной эвристике. Ничего не публикует и не обещает позицию в поиске Wildberries."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -995,25 +1296,33 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_seo_analytics(
-        title: str,
-        description: str,
-        keywords: list[str],
-        competitor_titles: list[str] | None = None,
-        characteristics: dict[str, Any] | None = None,
+        title: Annotated[str, Field(description="Текущее название карточки товара.")],
+        description: Annotated[
+            str, Field(description="Текущее описание карточки товара.")
+        ],
+        keywords: Annotated[
+            list[str],
+            Field(description="Целевые поисковые фразы и ключевые слова карточки."),
+        ],
+        competitor_titles: Annotated[
+            list[str] | None,
+            Field(
+                description="Необязательные названия похожих карточек для сравнения длины."
+            ),
+        ] = None,
+        characteristics: Annotated[
+            dict[str, Any] | None,
+            Field(description="Необязательные заполненные характеристики карточки."),
+        ] = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
-        auth = _auth_header(ctx, settings)
-        if auth is None:
-            return _auth_error()
         if len(title) > 1000 or len(description) > 20_000 or len(keywords) > 200:
-            return _input_error_for_auth(
-                auth,
+            return _input_error(
                 "seo_input_too_large",
                 "Сократите заголовок, описание или список ключевых слов до поддерживаемого размера.",
             )
         if competitor_titles is not None and len(competitor_titles) > 200:
-            return _input_error_for_auth(
-                auth,
+            return _input_error(
                 "too_many_competitor_titles",
                 "Передайте не более 200 заголовков конкурентов.",
             )
@@ -1027,12 +1336,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             title=title,
             competitor_titles=competitor_titles or [],
         )
+        if is_sandbox_authorization(_auth_header(ctx, settings)):
+            return sandbox_result("seo_analytics", data=_compact(result))
         return {"ok": True, "data": _compact(result)}
 
     @server.tool(
         name="wb_warehouse_stock",
         title="Остатки Wildberries по складам",
-        description="Читает текущие остатки на складах Wildberries для максимум 1 000 nm_id через шлюз Seller.",
+        description=(
+            "Вызывайте, когда пользователь спрашивает текущие остатки товара, наличие по складам или где заканчивается запас. "
+            "Читает Seller/Wildberries для 1–1000 артикулов и не изменяет остатки. Не заменяйте недоступные складские данные "
+            "веб-поиском; прогноз будущего пополнения выполняет wb_inventory_forecast."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -1041,10 +1356,24 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_warehouse_stock(
-        supplier_id_wb: int,
-        nm_ids: list[int],
-        chrt_ids: list[int] | None = None,
-        include_fbs_stocks: bool = True,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        nm_ids: Annotated[
+            list[int], Field(description="От 1 до 1000 артикулов Wildberries (nm_id).")
+        ],
+        chrt_ids: Annotated[
+            list[int] | None,
+            Field(
+                description="Необязательные идентификаторы вариантов товара (chrt_id)."
+            ),
+        ] = None,
+        include_fbs_stocks: Annotated[
+            bool, Field(description="Включить остатки FBS; по умолчанию включены.")
+        ] = True,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -1104,7 +1433,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.tool(
         name="wb_unit_economics",
         title="Калькулятор юнит-экономики Wildberries",
-        description="Рассчитывает цену нетто, комиссию, налог, затраты, прибыль, маржу и точку безубыточности по заданным вводным.",
+        description=(
+            "Всегда вызывайте для расчёта прибыли с единицы, маржи, рентабельности, точки безубыточности или целевой цены, "
+            "даже если модель может выполнить арифметику сама. Детерминированно учитывает только явно переданные цену, "
+            "скидку, себестоимость, комиссию, логистику, хранение, рекламу, налог и прочие затраты; отсутствующие затраты "
+            "считает нулевыми и не должен выдавать неполный расчёт за фактическую чистую прибыль."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -1113,33 +1447,58 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_unit_economics(
-        price: float,
-        cost_price: float,
-        commission_percent: float,
-        logistics_per_unit: float = 0.0,
-        storage_per_unit: float = 0.0,
-        advertising_per_unit: float = 0.0,
-        tax_percent: float = 0.0,
-        other_costs_per_unit: float = 0.0,
-        discount_percent: float = 0.0,
-        target_margin_percent: float | None = None,
+        price: Annotated[
+            float, Field(description="Цена до скидки за единицу товара в рублях.")
+        ],
+        cost_price: Annotated[
+            float, Field(description="Себестоимость единицы товара в рублях.")
+        ],
+        commission_percent: Annotated[
+            float,
+            Field(description="Комиссия Wildberries в процентах от цены после скидки."),
+        ],
+        logistics_per_unit: Annotated[
+            float, Field(description="Логистика на единицу товара в рублях.")
+        ] = 0.0,
+        storage_per_unit: Annotated[
+            float, Field(description="Хранение на единицу товара в рублях.")
+        ] = 0.0,
+        advertising_per_unit: Annotated[
+            float, Field(description="Реклама на единицу товара в рублях.")
+        ] = 0.0,
+        tax_percent: Annotated[
+            float, Field(description="Налог в процентах от цены после скидки.")
+        ] = 0.0,
+        other_costs_per_unit: Annotated[
+            float, Field(description="Прочие затраты на единицу товара в рублях.")
+        ] = 0.0,
+        discount_percent: Annotated[
+            float, Field(description="Скидка покупателю в процентах от исходной цены.")
+        ] = 0.0,
+        target_margin_percent: Annotated[
+            float | None,
+            Field(
+                description="Необязательная целевая маржа в процентах от цены после скидки."
+            ),
+        ] = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         try:
-            return {
-                "ok": True,
-                **unit_economics(
-                    price=price,
-                    cost_price=cost_price,
-                    commission_percent=commission_percent,
-                    logistics_per_unit=logistics_per_unit,
-                    storage_per_unit=storage_per_unit,
-                    advertising_per_unit=advertising_per_unit,
-                    tax_percent=tax_percent,
-                    other_costs_per_unit=other_costs_per_unit,
-                    discount_percent=discount_percent,
-                    target_margin_percent=target_margin_percent,
-                ),
-            }
+            data = unit_economics(
+                price=price,
+                cost_price=cost_price,
+                commission_percent=commission_percent,
+                logistics_per_unit=logistics_per_unit,
+                storage_per_unit=storage_per_unit,
+                advertising_per_unit=advertising_per_unit,
+                tax_percent=tax_percent,
+                other_costs_per_unit=other_costs_per_unit,
+                discount_percent=discount_percent,
+                target_margin_percent=target_margin_percent,
+            )
+            if is_sandbox_authorization(_auth_header(ctx, settings)):
+                return sandbox_result("unit_economics", data=_compact(data))
+            return {"ok": True, **data}
         except ValueError as error:
             return {
                 "ok": False,
@@ -1150,8 +1509,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_upload_cost_price",
         title="Загрузить себестоимость товара",
         description=(
-            "Записывает себестоимость одного товара в Seller для указанного поставщика. "
-            "Перед записью требует явное confirm=true; повторный вызов перезаписывает значение."
+            "Вызывайте, когда пользователь просит установить или изменить себестоимость товара в Seller. Это двухшаговая "
+            "перезапись: первый вызов всегда делайте с confirm=false, покажите пользователю кабинет, артикул и сумму из "
+            "confirmation_required, затем остановитесь. Только после отдельного явного подтверждения пользователя повторите "
+            "тот же вызов с confirm=true. Не используйте ранее данное общее согласие и не меняйте значения между вызовами."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
@@ -1161,10 +1522,33 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_upload_cost_price(
-        supplier_id_wb: int,
-        nm_id: int,
-        cost_price: float,
-        confirm: bool = False,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        nm_id: Annotated[
+            int,
+            Field(
+                description="Артикул Wildberries (nm_id), для которого меняется себестоимость."
+            ),
+        ],
+        cost_price: Annotated[
+            float,
+            Field(
+                description="Новая неотрицательная себестоимость единицы товара в рублях."
+            ),
+        ],
+        confirm: Annotated[
+            bool,
+            Field(
+                description=(
+                    "Всегда false при первом вызове. Установите true только после того, как пользователь увидел точную "
+                    "сводку confirmation_required и отдельно подтвердил эту запись."
+                )
+            ),
+        ] = False,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)
@@ -1184,7 +1568,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "supplier_id_wb и nm_id должны быть положительными, себестоимость — неотрицательной.",
             )
         if confirm is not True:
-            return {
+            response = {
                 "ok": False,
                 "error": {
                     "code": "confirmation_required",
@@ -1199,6 +1583,17 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                     "cost_price": normalized_cost_price,
                 },
             }
+            if is_sandbox_authorization(auth):
+                response.update(
+                    {
+                        "sandbox": True,
+                        "synthetic": True,
+                        "identity": "reviewer-sandbox",
+                        "source": "virtual_sandbox",
+                        "operation": "set_cost_price_preview",
+                    }
+                )
+            return response
         if auth is None:
             return _auth_error()
         if is_sandbox_authorization(auth):
@@ -1248,7 +1643,12 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     @server.tool(
         name="wb_replenishment_math",
         title="Калькулятор пополнения",
-        description="Рассчитывает количество пополнения по дневным продажам, остаткам, целевому покрытию и запасу безопасности.",
+        description=(
+            "Всегда вызывайте для точного расчёта количества к отправке по средним дневным продажам, текущему остатку, "
+            "товару в пути, целевому покрытию и страховочному запасу, даже если модель может посчитать сама. "
+            "Использует фиксированную формулу и округление вверх; не читает Seller и не распределяет товар по складам. "
+            "Для рекомендаций на основе кабинета и складов используйте wb_inventory_forecast."
+        ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
             destructiveHint=False,
@@ -1257,23 +1657,34 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_replenishment_math(
-        daily_sales: float,
-        current_stock: int,
-        target_days: int,
-        safety_days: int,
-        inbound_qty: int = 0,
+        daily_sales: Annotated[
+            float, Field(description="Среднее число проданных единиц в день.")
+        ],
+        current_stock: Annotated[
+            int, Field(description="Доступный текущий остаток в единицах.")
+        ],
+        target_days: Annotated[
+            int, Field(description="Желаемое число дней основного покрытия.")
+        ],
+        safety_days: Annotated[
+            int, Field(description="Дополнительное число дней страхового запаса.")
+        ],
+        inbound_qty: Annotated[
+            int, Field(description="Количество единиц, уже находящихся в поставке.")
+        ] = 0,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         try:
-            return {
-                "ok": True,
-                **replenishment_math(
-                    daily_sales=daily_sales,
-                    current_stock=current_stock,
-                    target_days=target_days,
-                    safety_days=safety_days,
-                    inbound_qty=inbound_qty,
-                ),
-            }
+            data = replenishment_math(
+                daily_sales=daily_sales,
+                current_stock=current_stock,
+                target_days=target_days,
+                safety_days=safety_days,
+                inbound_qty=inbound_qty,
+            )
+            if is_sandbox_authorization(_auth_header(ctx, settings)):
+                return sandbox_result("replenishment_math", data=_compact(data))
+            return {"ok": True, **data}
         except ValueError as error:
             return {
                 "ok": False,
@@ -1284,8 +1695,10 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         name="wb_inventory_forecast",
         title="Прогноз пополнения по складам",
         description=(
-            "Использует дефицит Seller и остатки по складам, чтобы оценить количество пополнения и направления. "
-            "Возвращает допущения и предупреждения; это рекомендация, а не гарантия продаж."
+            "Вызывайте, когда пользователь просит определить, какие товары срочно пополнить, сколько отправить и на какие "
+            "склады или регионы, исходя из его кабинета Seller. Читает доступный спрос и остатки, затем возвращает прозрачный "
+            "прогноз с допущениями на заданный горизонт. Не заменяйте закрытые данные веб-поиском и не обещайте будущие продажи; "
+            "для расчёта одного количества только по заданным числам используйте wb_replenishment_math."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=True,
@@ -1295,10 +1708,24 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
     async def wb_inventory_forecast(
-        supplier_id_wb: int,
-        nm_ids: list[int] | None = None,
-        horizon_days: int = 30,
-        safety_days: int = 7,
+        supplier_id_wb: Annotated[
+            int,
+            Field(
+                description="Положительный идентификатор кабинета из wb_list_suppliers."
+            ),
+        ],
+        nm_ids: Annotated[
+            list[int] | None,
+            Field(description="Необязательный фильтр из 1–100 артикулов Wildberries."),
+        ] = None,
+        horizon_days: Annotated[
+            int,
+            Field(description="Горизонт основного покрытия в днях; по умолчанию 30."),
+        ] = 30,
+        safety_days: Annotated[
+            int,
+            Field(description="Дополнительный страховой запас в днях; по умолчанию 7."),
+        ] = 7,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         auth = _auth_header(ctx, settings)

@@ -10,18 +10,33 @@ from wildberries_agent_mcp.config import Settings
 from wildberries_agent_mcp.server import _SellerIdentityTokenVerifier, build_server
 
 
-def test_calculators_are_noauth_but_supplier_reads_return_auth_required() -> None:
+def test_local_analyses_are_noauth_but_supplier_reads_return_auth_required() -> None:
     server = build_server(Settings())
-    _, calculator = asyncio.run(
-        server.call_tool(
+    calls = [
+        (
             "wb_replenishment_math",
             {"daily_sales": 2, "current_stock": 1, "target_days": 7, "safety_days": 1},
-        )
-    )
+        ),
+        (
+            "wb_unit_economics",
+            {"price": 1200, "cost_price": 320, "commission_percent": 18},
+        ),
+        (
+            "wb_competitive_price",
+            {"seller_price": 1200, "competitor_prices": [1100, 1200, 1300]},
+        ),
+        (
+            "wb_seo_analytics",
+            {"title": "Товар", "description": "Описание товара", "keywords": ["товар"]},
+        ),
+    ]
+    results = [
+        asyncio.run(server.call_tool(name, arguments))[1] for name, arguments in calls
+    ]
     private_result = asyncio.run(server.call_tool("wb_list_suppliers", {}))
     assert isinstance(private_result, CallToolResult)
     private = private_result.structuredContent
-    assert calculator["ok"] is True
+    assert all(result["ok"] is True for result in results)
     assert private is not None
     assert private["error"]["code"] == "auth_required"
 

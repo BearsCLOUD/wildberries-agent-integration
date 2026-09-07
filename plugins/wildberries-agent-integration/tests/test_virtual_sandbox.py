@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+from starlette.testclient import TestClient
+
 from wildberries_agent_mcp.client import SellerGatewayClient
 from wildberries_agent_mcp.config import Settings
 from wildberries_agent_mcp.sandbox import (
@@ -109,7 +111,9 @@ def test_regional_report_labels_sales_records_without_net_sales_claim(
     assert "revenue" not in result["data"]["regions"][0]
 
 
-def test_weather_sandbox_does_not_fetch_sales(monkeypatch) -> None:
+def test_weather_sandbox_uses_matching_virtual_rows_without_fetching(
+    monkeypatch,
+) -> None:
     async def unexpected_request(self, **kwargs):  # noqa: ARG001
         raise AssertionError("sandbox must not fetch sales")
 
@@ -126,7 +130,11 @@ def test_weather_sandbox_does_not_fetch_sales(monkeypatch) -> None:
             },
         )
     )
-    assert result["ok"] is False
+    assert result["ok"] is True
+    assert result["sandbox"] is True
+    assert result["synthetic"] is True
+    assert result["source"] == "virtual_fixture"
+    assert result["matched_observations"] == 2
 
 
 def test_weather_rejects_incompatible_daily_response(monkeypatch) -> None:
@@ -193,9 +201,10 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
     monkeypatch.setattr(
         "wildberries_agent_mcp.client.httpx.AsyncClient", UnexpectedHttpClient
     )
-    server = _sandbox_server()
-
     requests = [
+        ("wb_connect_supplier", {}),
+        ("wb_connection_status", {}),
+        ("wb_connect_telegram", {}),
         ("wb_list_suppliers", {}),
         (
             "wb_analytics_summary",
@@ -208,6 +217,13 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
             },
         ),
         (
+            "wb_competitor_analysis",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+            },
+        ),
+        (
             "wb_wildberries_proxy",
             {
                 "supplier_id_wb": SANDBOX_SUPPLIER_ID,
@@ -216,8 +232,53 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
             },
         ),
         (
+            "wb_competitive_price",
+            {
+                "seller_price": 1290.0,
+                "competitor_prices": [1190.0, 1250.0, 1390.0],
+                "cost_price": 700.0,
+                "target_margin_percent": 25.0,
+            },
+        ),
+        (
+            "wb_sales_by_region",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "date_from": "2026-01-01",
+                "date_to": "2026-01-14",
+            },
+        ),
+        (
+            "wb_sales_weather_impact",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+                "region": "Екатеринбург",
+                "date_from": "2026-01-01",
+                "date_to": "2026-01-14",
+            },
+        ),
+        (
+            "wb_seo_analytics",
+            {
+                "title": "Термокружка 500 мл",
+                "description": "Стальная термокружка сохраняет тепло, герметичная крышка",
+                "keywords": ["термокружка", "кружка дорожная", "термос"],
+            },
+        ),
+        (
             "wb_warehouse_stock",
             {"supplier_id_wb": SANDBOX_SUPPLIER_ID, "nm_ids": [900000101]},
+        ),
+        (
+            "wb_unit_economics",
+            {
+                "price": 1200.0,
+                "cost_price": 320.0,
+                "commission_percent": 18.0,
+                "logistics_per_unit": 80.0,
+                "tax_percent": 6.0,
+            },
         ),
         (
             "wb_refresh_analytics",
@@ -233,23 +294,53 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
             },
         ),
         (
+            "wb_replenishment_math",
+            {
+                "daily_sales": 3.2,
+                "current_stock": 20,
+                "target_days": 30,
+                "safety_days": 5,
+                "inbound_qty": 10,
+            },
+        ),
+        (
             "wb_inventory_forecast",
             {"supplier_id_wb": SANDBOX_SUPPLIER_ID},
         ),
     ]
 
-    for name, arguments in requests:
-        _, result = asyncio.run(server.call_tool(name, arguments))
-        assert result["ok"] is True
-        assert result["sandbox"] is True
-        assert result["synthetic"] is True
-        assert result["identity"] == "reviewer-sandbox"
-        assert result["supplier_id_wb"] == SANDBOX_SUPPLIER_ID
-        if name == "wb_inventory_forecast":
-            destination = result["data"]["items"][0]["destinations"][0]
-            assert destination["warehouse"] != "[truncated]"
-            assert isinstance(destination["quantity"], int)
-            assert destination["quantity"] > 0
+    assert len(requests) == 17
+    for _fresh_session in range(2):
+        server = _sandbox_server()
+        with TestClient(
+            server.streamable_http_app(), base_url="http://127.0.0.1:8080"
+        ) as client:
+            for request_id, (name, arguments) in enumerate(requests, start=1):
+                response = client.post(
+                    "/mcp",
+                    headers={
+                        "Authorization": f"Bearer {SANDBOX_ACCESS_TOKEN}",
+                        "Accept": "application/json, text/event-stream",
+                    },
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments},
+                    },
+                )
+                assert response.status_code == 200, name
+                result = response.json()["result"]["structuredContent"]
+                assert result["ok"] is True, name
+                assert result["sandbox"] is True, name
+                assert result["synthetic"] is True, name
+                assert result["identity"] == "reviewer-sandbox", name
+                assert result["supplier_id_wb"] == SANDBOX_SUPPLIER_ID, name
+                if name == "wb_inventory_forecast":
+                    destination = result["data"]["items"][0]["destinations"][0]
+                    assert destination["warehouse"] != "[truncated]"
+                    assert isinstance(destination["quantity"], int)
+                    assert destination["quantity"] > 0
 
     assert calls == []
 
@@ -262,6 +353,26 @@ def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(
 
     monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
     server = _sandbox_server()
+
+    _, preview = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+                "cost_price": 320.0,
+            },
+        )
+    )
+    assert preview["ok"] is False
+    assert preview["error"]["code"] == "confirmation_required"
+    assert preview["requested"] == {
+        "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+        "nm_id": 900000101,
+        "cost_price": 320.0,
+    }
+    assert preview["sandbox"] is True
+    assert preview["synthetic"] is True
 
     _, upload = asyncio.run(
         server.call_tool(

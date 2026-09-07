@@ -7,6 +7,7 @@ Wildberries request may be reached while it is active.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 SANDBOX_ACCESS_TOKEN = "wb-agent-sandbox-token-v1"
@@ -97,11 +98,14 @@ def suppliers() -> dict[str, Any]:
 
 
 def connect_supplier(*, supplier_id_wb: int | None = None) -> dict[str, Any]:
-    return result(
+    response = result(
         "connect_supplier",
         status="connected",
-        supplier_id_wb=supplier_id_wb or SANDBOX_SUPPLIER_ID,
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
     )
+    if supplier_id_wb is not None and supplier_id_wb != SANDBOX_SUPPLIER_ID:
+        response["requested_supplier_id_wb"] = supplier_id_wb
+    return response
 
 
 def connection_status() -> dict[str, Any]:
@@ -251,6 +255,39 @@ def regional_sales(
             "sales": 7,
         },
     ]
+
+
+def weather_inputs(
+    *, period: dict[str, str], region: str | None, nm_id: int
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return matching deterministic sales and weather rows for reviewer calls."""
+    start = date.fromisoformat(period["date_from"])
+    end = date.fromisoformat(period["date_to"])
+    sample_start = max(start, end - timedelta(days=13))
+    selected_region = region.strip() if region and region.strip() else "Екатеринбург"
+    sales_rows: list[dict[str, Any]] = []
+    weather_rows: list[dict[str, Any]] = []
+    current = sample_start
+    index = 0
+    while current <= end:
+        sales_rows.append(
+            {
+                "date": current.isoformat(),
+                "region": selected_region,
+                "nm_id": nm_id,
+                "sales": 5 + index,
+            }
+        )
+        weather_rows.append(
+            {
+                "date": current.isoformat(),
+                "region": selected_region,
+                "temperature_c": 12 + index,
+            }
+        )
+        current += timedelta(days=1)
+        index += 1
+    return sales_rows, weather_rows
 
 
 def inventory_inputs() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:

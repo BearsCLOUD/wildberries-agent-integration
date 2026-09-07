@@ -111,7 +111,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Only computes a price corridor from provided or privately retrieved observations.",
+        "read_only_justification": "Only computes a deterministic price corridor from numeric values supplied in the request.",
         "open_world_justification": "Does not change public prices or any third-party state.",
         "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
       }
@@ -147,7 +147,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Only scores supplied or privately retrieved product-card text and keywords.",
+        "read_only_justification": "Only computes a deterministic SEO score from product-card content supplied in the request.",
         "open_world_justification": "Does not publish or update a Wildberries product card.",
         "destructive_justification": "Does not delete, overwrite, revoke, or perform an irreversible action."
       }

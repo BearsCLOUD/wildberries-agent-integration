@@ -98,7 +98,7 @@ not publish or mutate a Wildberries card without a separate explicit user action
 - The MCP server uses the configured Seller Gateway URL. In production/staging it forwards the caller's opaque MCP bearer only to fixed `/agent/...` routes; in local dev/test it may use an explicitly configured static token. It never accepts a Seller bearer or raw Wildberries token as a tool argument.
 - Default transport is Streamable HTTP at `/mcp`. Local stdio is provided for development.
 - Hosted deployments expose OAuth protected-resource metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` when `MCP_PUBLIC_URL` and `MCP_AUTH_ISSUER` are configured.
-- Fifteen protected MCP tools advertise the `wildberries-agent-free` OAuth security scheme; the two pure calculators advertise `noauth`.
+- Thirteen tools that read or change private Seller state advertise the `wildberries-agent-free` OAuth security scheme; four local deterministic analyses advertise `noauth`.
 - The public MCP is deployed beside the analytics server. `seller.bears.ru` remains the browser
   registration, sign-in, and supplier-connection surface; it is not presented as the analytics MCP host.
 
