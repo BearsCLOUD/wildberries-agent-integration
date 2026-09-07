@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "id": "wildberries-commercial-director-wow",
+  "purpose": "Paid and organic advertising video; never use this recording as submission or reviewer evidence.",
+  "product": {
+    "name": "Интеграция агента Wildberries",
+    "chat_url": "https://chatgpt.com/",
+    "mcp_url": "https://wb.seller.bears.ru/mcp",
+    "minimum_version": "0.1.33"
+  },
+  "capture": {
+    "aspect_ratio": "16:9",
+    "resolution": "1920x1080",
+    "fps": 30,
+    "target_duration_seconds": 58,
+    "theme": "dark",
+    "browser_zoom_percent": 110,
+    "show_cursor": true,
+    "hide_sidebar": true,
+    "mute_notifications": true
+  },
+  "data_policy": {
+    "mode": "synthetic_marketing_tenant",
+    "required_disclosure": "Демонстрационные данные",
+    "never_capture": [
+      "account email or avatar menu",
+      "OAuth pages",
+      "Wildberries tokens",
+      "browser address-bar suggestions",
+      "developer console",
+      "MCP request payloads"
+    ]
+  },
+  "playwright_session": {
+    "connection": "Use the existing persistent Playwright browser and retained ChatGPT session.",
+    "login_handoff": "If ChatGPT login, MFA, or CAPTCHA appears, stop recording and hand control to the user.",
+    "account_guard": "Continue only when the intended ChatGPT account and the app Интеграция агента Wildberries are visible.",
+    "cleanup": "Leave the browser, account, tabs, and persistent profile intact; never log out or clear state."
+  },
+  "locators": {
+    "new_chat": [
+      "get_by_role('link', name=/New chat|Новый чат/i)",
+      "get_by_role('button', name=/New chat|Новый чат/i)"
+    ],
+    "composer": [
+      "locator('#prompt-textarea')",
+      "locator('[contenteditable=true]').last"
+    ],
+    "send": [
+      "get_by_role('button', name=/Send|Отправить/i)",
+      "composer.press('Enter')"
+    ],
+    "stop": [
+      "get_by_role('button', name=/Stop|Остановить/i)"
+    ],
+    "app_chip": [
+      "get_by_text('Интеграция агента Wildberries', exact=false)",
+      "get_by_role('button', name=/Интеграция агента Wildberries/i)"
+    ]
+  },
+  "shots": [
+    {
+      "id": "cold_open",
+      "timeline_seconds": "0-3",
+      "playwright_actions": [
+        "Open a fresh ChatGPT chat.",
+        "Confirm the Wildberries app chip is selected.",
+        "Collapse the sidebar and keep only the conversation canvas visible."
+      ],
+      "edit_overlay": {
+        "headline": "Ваш Wildberries. Один вопрос.",
+        "subline": "Аналитика и решения прямо в ChatGPT",
+        "style": "Fast 250 ms fade-up, white text, purple accent, no product claims beyond the recorded result."
+      }
+    },
+    {
+      "id": "hero_prompt",
+      "timeline_seconds": "3-13",
+      "playwright_actions": [
+        "Focus the composer.",
+        "Type the prompt with a visible 18-24 ms delay per character.",
+        "Pause for 500 ms after the last character, then send."
+      ],
+      "prompt": "Будь моим коммерческим директором Wildberries. За последние 14 завершённых дней проанализируй магазин: заказы, продажи, возвраты, выручку, комиссии и логистику. Для товара 900000101 проверь остатки и сравни цену с конкурентами. Юнит-экономику посчитай для цены 1200 ₽, себестоимости 320 ₽, комиссии 18%, логистики 80 ₽ и налога 6%. В конце дай три решения по приоритету. Используй данные приложения и не ищи закрытые данные в интернете.",
+      "expected_tools": [
+        "wb_list_suppliers",
+        "wb_analytics_summary",
+        "wb_competitor_analysis",
+        "wb_warehouse_stock",
+        "wb_unit_economics"
+      ],
+      "allowed_supporting_tools": [
+        "wb_connection_status"
+      ],
+      "forbidden_tools": [
+        "web_search",
+        "wb_wildberries_proxy"
+      ]
+    },
+    {
+      "id": "tool_montage",
+      "timeline_seconds": "13-27",
+      "playwright_actions": [
+        "Keep the viewport on tool activity while the response is running.",
+        "Do not click tool details or expose arguments.",
+        "Wait until the stop button disappears and the assistant response is stable for two seconds."
+      ],
+      "required_visible_labels": [
+        "Кабинеты Wildberries получены",
+        "Аналитика Wildberries готова",
+        "Сравнение конкурентов готово",
+        "Остатки по складам получены",
+        "Юнит-экономика рассчитана"
+      ],
+      "edit_overlay": {
+        "headline": "5 источников → 1 понятное решение",
+        "style": "Show only after at least four required tool labels are visible; otherwise discard the take."
+      }
+    },
+    {
+      "id": "result_reveal",
+      "timeline_seconds": "27-37",
+      "playwright_actions": [
+        "Scroll the assistant answer in two smooth movements.",
+        "Hold for two seconds on headline metrics.",
+        "Hold for three seconds on the prioritized actions."
+      ],
+      "required_result_concepts": [
+        "orders, sales, and returns",
+        "revenue and Wildberries expenses",
+        "warehouse stock",
+        "competitor price position",
+        "unit profit or margin",
+        "three prioritized actions"
+      ],
+      "edit_overlay": {
+        "headline": "Не просто цифры — следующий шаг",
+        "style": "Use a subtle 103% digital push-in; do not cover metrics or caveats."
+      }
+    },
+    {
+      "id": "forecast_follow_up",
+      "timeline_seconds": "37-46",
+      "playwright_actions": [
+        "Focus the same composer without opening a new chat.",
+        "Type the follow-up at 22-28 ms per character and send.",
+        "Wait until the forecast result is stable."
+      ],
+      "prompt": "Теперь рассчитай, сколько этого товара нужно отправить и на какие склады, чтобы хватило примерно на 30 дней плюс 7 дней страховки. Покажи количество, направления и причины рекомендации.",
+      "expected_tools": [
+        "wb_inventory_forecast"
+      ],
+      "forbidden_tools": [
+        "web_search",
+        "wb_replenishment_math"
+      ],
+      "required_visible_labels": [
+        "Прогноз пополнения готов"
+      ]
+    },
+    {
+      "id": "safe_action",
+      "timeline_seconds": "46-54",
+      "playwright_actions": [
+        "Type the write request and send.",
+        "Stop after ChatGPT shows the exact confirmation summary.",
+        "Never send confirm=true during this advertising take."
+      ],
+      "prompt": "И последнее: установи себестоимость 320 ₽ для товара 900000101.",
+      "expected_tools": [
+        "wb_upload_cost_price"
+      ],
+      "expected_result_code": "confirmation_required",
+      "required_result_concepts": [
+        "article 900000101",
+        "cost price 320 ₽",
+        "explicit confirmation before write"
+      ],
+      "edit_overlay": {
+        "headline": "Изменения — только после подтверждения",
+        "style": "Highlight the confirmation card with a restrained purple outline; do not simulate a successful write."
+      }
+    },
+    {
+      "id": "outro",
+      "timeline_seconds": "54-58",
+      "playwright_actions": [
+        "Freeze on the confirmation summary for 800 ms, then fade to the brand card."
+      ],
+      "edit_overlay": {
+        "headline": "Wildberries под контролем",
+        "subline": "Спросите ChatGPT — Seller Bears посчитает",
+        "cta": "Подключить интеграцию",
+        "style": "Black background, product mark, purple-to-blue light sweep, 300 ms fade-out."
+      }
+    }
+  ],
+  "take_acceptance": {
+    "must_pass": [
+      "The app is visibly selected before the first prompt.",
+      "Every expected tool in each shot is observed in the ChatGPT activity trace.",
+      "No web search is observed.",
+      "No authentication, connection, or internal error appears.",
+      "The analytics answer states the exact resolved period.",
+      "The answer does not label revenue minus Wildberries fees as net profit.",
+      "The write scene stops at confirmation_required without mutation.",
+      "The disclosure Демонстрационные данные remains visible but unobtrusive."
+    ],
+    "discard_if": [
+      "The model answers any required calculation without the expected MCP tool.",
+      "A tool result or browser chrome exposes account identifiers or credentials.",
+      "The assistant fabricates missing private data or uses public web results as Seller data.",
+      "The final answer covers fewer than four of the six required result concepts."
+    ]
+  },
+  "deliverables": [
+    "One 1920x1080 H.264 MP4 without browser audio.",
+    "One clean recording without overlays for future edits.",
+    "One 15-second cut using cold_open, tool_montage, result_reveal, and outro.",
+    "One thumbnail frame from result_reveal without personal data."
+  ]
+}

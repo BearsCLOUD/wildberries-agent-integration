@@ -215,6 +215,7 @@ ChatGPT/OpenAI остаётся отдельным этапом: для неё �
 - [Граница агентской идентификации](docs/identity-bridge.md)
 - [Доступ и mock-данные для ревьюера](docs/reviewer-access.md)
 - [Подача в каталог OpenAI](docs/openai-submission.md)
+- [Рекламный Playwright-сценарий](examples/marketing-video-playwright.json)
 - [Подача в каталог Claude](docs/anthropic-submission.md)
 - [Безопасность](SECURITY.md)
 - [Приватность](plugins/wildberries-agent-integration/PRIVACY.md)
