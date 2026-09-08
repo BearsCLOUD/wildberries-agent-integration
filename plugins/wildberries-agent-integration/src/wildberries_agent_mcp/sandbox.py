@@ -7,12 +7,35 @@ Wildberries request may be reached while it is active.
 
 from __future__ import annotations
 
+import hashlib
+import secrets
+import threading
+import time
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
 SANDBOX_ACCESS_TOKEN = "wb-agent-sandbox-token-v1"
 SANDBOX_SUPPLIER_ID = 900000001
 SANDBOX_SOURCE = "virtual_sandbox"
+SANDBOX_RESOURCE = "https://wb.seller.bears.ru/mcp"
+_COST_CONFIRMATION_TTL_SECONDS = 300
+
+
+@dataclass(slots=True)
+class _CostConfirmation:
+    identity: str
+    resource: str
+    supplier_id_wb: int
+    nm_id: int
+    cost_price: str
+    expires_at: float
+    state: str = "prepared"
+    completed_result: dict[str, Any] | None = None
+
+
+_cost_confirmations: dict[str, _CostConfirmation] = {}
+_cost_confirmation_lock = threading.Lock()
 
 # POST operations and the generic WB operation endpoint are not exposed by
 # the sandbox proxy.  The public reviewer path remains read-only there.
@@ -224,7 +247,115 @@ def refresh(*, supplier_id_wb: int, period: int) -> dict[str, Any]:
     )
 
 
+def prepare_cost_price(
+    *,
+    supplier_id_wb: int,
+    nm_id: int,
+    cost_price: float,
+    identity: str = "reviewer-sandbox",
+    resource: str = SANDBOX_RESOURCE,
+) -> dict[str, Any]:
+    token = secrets.token_urlsafe(32)
+    token_hash = _confirmation_hash(token)
+    with _cost_confirmation_lock:
+        now = time.monotonic()
+        expired = [
+            key
+            for key, record in _cost_confirmations.items()
+            if record.expires_at <= now
+        ]
+        for key in expired:
+            _cost_confirmations.pop(key, None)
+        _cost_confirmations[token_hash] = _CostConfirmation(
+            identity=identity,
+            resource=resource,
+            supplier_id_wb=supplier_id_wb,
+            nm_id=nm_id,
+            cost_price=_canonical_cost(cost_price),
+            expires_at=now + _COST_CONFIRMATION_TTL_SECONDS,
+        )
+    response = _cost_confirmation_error(
+        "confirmation_required",
+        "Покажите точные параметры пользователю и запросите отдельное подтверждение записи.",
+        supplier_id_wb=supplier_id_wb,
+    )
+    response.update(
+        {
+            "operation": "set_cost_price_preview",
+            "requested": {
+                "supplier_id_wb": supplier_id_wb,
+                "nm_id": nm_id,
+                "cost_price": cost_price,
+            },
+            "confirmation_token": token,
+            "expires_in": _COST_CONFIRMATION_TTL_SECONDS,
+        }
+    )
+    return response
+
+
 def upload_cost_price(
+    *,
+    supplier_id_wb: int,
+    nm_id: int,
+    cost_price: float,
+    confirmation_token: str | None,
+    identity: str = "reviewer-sandbox",
+    resource: str = SANDBOX_RESOURCE,
+) -> dict[str, Any]:
+    if not confirmation_token:
+        return _cost_confirmation_error(
+            "confirmation_required",
+            "Сначала получите preview и confirmation_token с confirm=false.",
+            supplier_id_wb=supplier_id_wb,
+        )
+
+    token_hash = _confirmation_hash(confirmation_token)
+    with _cost_confirmation_lock:
+        record = _cost_confirmations.get(token_hash)
+        if record is None or record.expires_at <= time.monotonic():
+            _cost_confirmations.pop(token_hash, None)
+            return _cost_confirmation_error(
+                "confirmation_expired",
+                "Подтверждение отсутствует или истекло. Получите новый preview.",
+                supplier_id_wb=supplier_id_wb,
+            )
+        if (
+            record.identity != identity
+            or record.resource != resource
+            or record.supplier_id_wb != supplier_id_wb
+            or record.nm_id != nm_id
+            or record.cost_price != _canonical_cost(cost_price)
+        ):
+            return _cost_confirmation_error(
+                "confirmation_mismatch",
+                "Параметры отличаются от preview. Получите новое подтверждение.",
+                supplier_id_wb=supplier_id_wb,
+            )
+        if record.state == "completed" and record.completed_result is not None:
+            return dict(record.completed_result)
+        if record.state != "prepared":
+            return _sandbox_unknown_write_status(supplier_id_wb)
+        record.state = "in_flight"
+
+    try:
+        completed = _simulated_cost_result(
+            supplier_id_wb=supplier_id_wb,
+            nm_id=nm_id,
+            cost_price=cost_price,
+        )
+    except Exception:  # noqa: BLE001 - any uncertain simulated completion must fail closed
+        with _cost_confirmation_lock:
+            record.state = "unknown"
+        return _sandbox_unknown_write_status(supplier_id_wb)
+
+    with _cost_confirmation_lock:
+        record.state = "completed"
+        record.completed_result = dict(completed)
+    return completed
+
+
+def _simulated_cost_result(
     *, supplier_id_wb: int, nm_id: int, cost_price: float
 ) -> dict[str, Any]:
     return result(
@@ -236,6 +367,36 @@ def upload_cost_price(
         mutation="none",
         message="Синтетическая запись: Seller и Wildberries не изменены.",
     )
+
+
+def _cost_confirmation_error(
+    code: str, message: str, *, supplier_id_wb: int
+) -> dict[str, Any]:
+    response = result(
+        "set_cost_price",
+        supplier_id_wb=supplier_id_wb,
+    )
+    response["ok"] = False
+    response["error"] = {"code": code, "message": message}
+    return response
+
+
+def _sandbox_unknown_write_status(supplier_id_wb: int) -> dict[str, Any]:
+    response = _cost_confirmation_error(
+        "write_status_unknown",
+        "Статус записи неизвестен; автоматический повтор запрещён.",
+        supplier_id_wb=supplier_id_wb,
+    )
+    response["write_status"] = "possibly_applied"
+    return response
+
+
+def _confirmation_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _canonical_cost(cost_price: float) -> str:
+    return "0.0" if cost_price == 0 else repr(cost_price)
 
 
 def regional_sales(

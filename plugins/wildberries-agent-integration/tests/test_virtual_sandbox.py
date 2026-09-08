@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 
 from starlette.testclient import TestClient
 
+from wildberries_agent_mcp import sandbox as sandbox_module
 from wildberries_agent_mcp.client import SellerGatewayClient
 from wildberries_agent_mcp.config import Settings
 from wildberries_agent_mcp.sandbox import (
@@ -315,6 +317,28 @@ def test_sandbox_tools_are_fully_virtual_and_marked(monkeypatch) -> None:
         with TestClient(
             server.streamable_http_app(), base_url="http://127.0.0.1:8080"
         ) as client:
+            preview_response = client.post(
+                "/mcp",
+                headers={
+                    "Authorization": f"Bearer {SANDBOX_ACCESS_TOKEN}",
+                    "Accept": "application/json, text/event-stream",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "wb_upload_cost_price",
+                        "arguments": {
+                            "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                            "nm_id": 900000101,
+                            "cost_price": 320.0,
+                        },
+                    },
+                },
+            )
+            preview = preview_response.json()["result"]["structuredContent"]
+            requests[-3][1]["confirmation_token"] = preview["confirmation_token"]
             for request_id, (name, arguments) in enumerate(requests, start=1):
                 response = client.post(
                     "/mcp",
@@ -373,6 +397,7 @@ def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(
     }
     assert preview["sandbox"] is True
     assert preview["synthetic"] is True
+    assert preview["expires_in"] == 300
 
     _, upload = asyncio.run(
         server.call_tool(
@@ -382,11 +407,40 @@ def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(
                 "nm_id": 900000101,
                 "cost_price": 320.0,
                 "confirm": True,
+                "confirmation_token": preview["confirmation_token"],
             },
         )
     )
     assert upload["status"] == "simulated"
     assert upload["mutation"] == "none"
+
+    _, replay = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+                "cost_price": 320.0,
+                "confirm": True,
+                "confirmation_token": preview["confirmation_token"],
+            },
+        )
+    )
+    assert replay == upload
+
+    _, changed = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+                "nm_id": 900000101,
+                "cost_price": 321.0,
+                "confirm": True,
+                "confirmation_token": preview["confirmation_token"],
+            },
+        )
+    )
+    assert changed["error"]["code"] == "confirmation_mismatch"
 
     _, wrong_supplier = asyncio.run(
         server.call_tool("wb_refresh_analytics", {"supplier_id_wb": 31460, "period": 1})
@@ -409,3 +463,124 @@ def test_sandbox_writes_are_simulated_and_invalid_inputs_are_marked(
     assert blocked_operation["ok"] is False
     assert blocked_operation["sandbox"] is True
     assert blocked_operation["synthetic"] is True
+
+
+def test_sandbox_cost_confirmation_expires_and_prunes(monkeypatch) -> None:
+    now = [100.0]
+    monkeypatch.setattr(sandbox_module.time, "monotonic", lambda: now[0])
+    preview = sandbox_module.prepare_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000101,
+        cost_price=320.0,
+    )
+    token = preview["confirmation_token"]
+    token_hash = sandbox_module._confirmation_hash(token)
+
+    now[0] = 401.0
+    expired = sandbox_module.upload_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000101,
+        cost_price=320.0,
+        confirmation_token=token,
+    )
+    assert expired["error"]["code"] == "confirmation_expired"
+    assert token_hash not in sandbox_module._cost_confirmations
+
+    stale = sandbox_module.prepare_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000102,
+        cost_price=321.0,
+    )
+    stale_hash = sandbox_module._confirmation_hash(stale["confirmation_token"])
+    now[0] = 702.0
+    sandbox_module.prepare_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000103,
+        cost_price=322.0,
+    )
+    assert stale_hash not in sandbox_module._cost_confirmations
+
+
+def test_sandbox_cost_confirmation_binds_identity_and_resource() -> None:
+    preview = sandbox_module.prepare_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000101,
+        cost_price=320.0,
+    )
+    for changed in ({"identity": "other"}, {"resource": "https://other.example/mcp"}):
+        result = sandbox_module.upload_cost_price(
+            supplier_id_wb=SANDBOX_SUPPLIER_ID,
+            nm_id=900000101,
+            cost_price=320.0,
+            confirmation_token=preview["confirmation_token"],
+            **changed,
+        )
+        assert result["error"]["code"] == "confirmation_mismatch"
+
+
+def test_sandbox_cost_confirmation_allows_one_in_flight_operation(
+    monkeypatch,
+) -> None:
+    preview = sandbox_module.prepare_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000101,
+        cost_price=320.0,
+    )
+    original = sandbox_module._simulated_cost_result
+    claimed = threading.Event()
+    release = threading.Event()
+
+    def blocking_result(**kwargs):
+        claimed.set()
+        assert release.wait(timeout=2)
+        return original(**kwargs)
+
+    monkeypatch.setattr(sandbox_module, "_simulated_cost_result", blocking_result)
+    first: list[dict] = []
+    arguments = {
+        "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+        "nm_id": 900000101,
+        "cost_price": 320.0,
+        "confirmation_token": preview["confirmation_token"],
+    }
+    worker = threading.Thread(
+        target=lambda: first.append(sandbox_module.upload_cost_price(**arguments))
+    )
+    worker.start()
+    assert claimed.wait(timeout=2)
+    concurrent = sandbox_module.upload_cost_price(**arguments)
+    assert concurrent["error"]["code"] == "write_status_unknown"
+    assert concurrent["write_status"] == "possibly_applied"
+    release.set()
+    worker.join(timeout=2)
+    assert first[0]["status"] == "simulated"
+    assert sandbox_module.upload_cost_price(**arguments) == first[0]
+
+
+def test_sandbox_cost_confirmation_does_not_retry_unknown_result(
+    monkeypatch,
+) -> None:
+    preview = sandbox_module.prepare_cost_price(
+        supplier_id_wb=SANDBOX_SUPPLIER_ID,
+        nm_id=900000101,
+        cost_price=320.0,
+    )
+    calls = 0
+
+    def lost_result(**_kwargs):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("simulated lost result")
+
+    monkeypatch.setattr(sandbox_module, "_simulated_cost_result", lost_result)
+    arguments = {
+        "supplier_id_wb": SANDBOX_SUPPLIER_ID,
+        "nm_id": 900000101,
+        "cost_price": 320.0,
+        "confirmation_token": preview["confirmation_token"],
+    }
+    first = sandbox_module.upload_cost_price(**arguments)
+    replay = sandbox_module.upload_cost_price(**arguments)
+    assert first["error"]["code"] == "write_status_unknown"
+    assert replay["error"]["code"] == "write_status_unknown"
+    assert calls == 1

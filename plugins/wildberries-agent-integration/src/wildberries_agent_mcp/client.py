@@ -9,6 +9,16 @@ import httpx
 from .config import Settings
 
 
+_OWNED_CONFIRMATION_ERROR_CODES = frozenset(
+    {
+        "confirmation_required",
+        "confirmation_expired",
+        "confirmation_mismatch",
+        "write_status_unknown",
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class GatewayError(Exception):
     code: str
@@ -104,15 +114,29 @@ class SellerGatewayClient:
         if response.status_code >= 400:
             error_code = _status_code(response.status_code)
             try:
-                detail = response.json().get("detail")
+                error_payload = response.json()
+                detail = error_payload.get("detail")
+                owned_error = error_payload.get("error")
             except (AttributeError, ValueError):
                 detail = None
-            if detail in {
+                owned_error = None
+            if isinstance(detail, str) and detail in {
                 "seller_link_required",
                 "seller_account_unavailable",
                 "agent_route_not_allowed",
             }:
                 error_code = detail
+            if (
+                response.status_code == 409
+                and path == "/agent/price_management/cost_price"
+                and isinstance(owned_error, dict)
+            ):
+                owned_code = owned_error.get("code")
+                if (
+                    isinstance(owned_code, str)
+                    and owned_code in _OWNED_CONFIRMATION_ERROR_CODES
+                ):
+                    error_code = owned_code
             raise GatewayError(error_code, status=response.status_code)
         if response.status_code == 204 or not response.content:
             return {}

@@ -37,11 +37,19 @@ def test_live_routing_regressions_cover_every_public_tool() -> None:
     assert len(set(LIVE_ROUTING_REGRESSIONS.values())) == 17
     for tool in tools:
         assert "вызывайте" in tool.description.casefold(), tool.name
-        assert tool.outputSchema == {
-            "additionalProperties": True,
-            "title": f"{tool.name}DictOutput",
-            "type": "object",
-        }
+        if tool.name == "wb_upload_cost_price":
+            assert tool.outputSchema["title"] == "CostPriceOutput"
+            assert "anyOf" in tool.outputSchema
+            assert "CostPriceSuccess" in tool.outputSchema["$defs"]
+            assert "CostPricePreviewFailure" in tool.outputSchema["$defs"]
+            assert "CostPriceUnknownFailure" in tool.outputSchema["$defs"]
+            assert "result" not in tool.outputSchema.get("properties", {})
+        else:
+            assert tool.outputSchema == {
+                "additionalProperties": True,
+                "title": f"{tool.name}DictOutput",
+                "type": "object",
+            }
         for field_name, field_schema in tool.inputSchema["properties"].items():
             assert field_schema.get("description"), f"{tool.name}.{field_name}"
         assert tool.meta["openai/toolInvocation/invoking"]
@@ -62,6 +70,7 @@ def test_server_routing_policy_blocks_private_web_fallback_and_normalizes_dates(
     assert "Всегда сообщайте точные date_from и date_to" in instructions
     assert "confirm=false" in instructions
     assert "confirm=true" in instructions
+    assert "confirmation_token" in instructions
 
 
 def test_specialized_tools_exclude_neighboring_intents() -> None:
@@ -76,3 +85,5 @@ def test_specialized_tools_exclude_neighboring_intents() -> None:
     assert "Ничего не записывает" in tools["wb_competitive_price"]
     assert "не распределяет товар по складам" in tools["wb_replenishment_math"]
     assert "двухшаговая" in tools["wb_upload_cost_price"]
+    assert "отдельного сообщения" in tools["wb_upload_cost_price"]
+    assert "confirmation_token" in tools["wb_upload_cost_price"]

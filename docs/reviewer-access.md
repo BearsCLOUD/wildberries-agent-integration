@@ -24,6 +24,20 @@ Sandbox token не является Seller bearer или WB API token. Код sa
 3. Убедитесь, что ответы не содержат Seller credentials, WB token или provider response body.
 4. Проверьте OpenAI challenge на публичном host по инструкции в [`openai-submission.md`](openai-submission.md).
 
+### Подтверждаемая запись себестоимости
+
+Для `wb_upload_cost_price` используйте только два сообщения пользователя:
+
+1. Вызовите инструмент с `confirm=false` и без `confirmation_token`.
+2. Сохраните возвращённый `confirmation_token` для следующего вызова, а пользователю покажите
+   `supplier_id_wb`, `nm_id`, `cost_price` и `expires_in=300`; затем дождитесь отдельного сообщения
+   с подтверждением этих значений.
+3. Повторите вызов с `confirm=true`, теми же параметрами и `confirmation_token` из preview.
+
+Изменение товара, поставщика или суммы требует нового preview. Отсутствующий, просроченный или
+несовпадающий token не запускает запись. При `write_status_unknown` автоматический повтор запрещён.
+В sandbox успешный результат имеет `status=simulated` и `mutation=none`.
+
 Не создавайте пользователя Seller, не запрашивайте пароль и не подключайте sandbox к боевому
 поставщику. Реальный пользователь проходит обычный onboarding и вводит WB token только в Seller;
 этот путь описан в [`identity-bridge.md`](identity-bridge.md).

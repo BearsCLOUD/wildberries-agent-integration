@@ -115,7 +115,7 @@ OAuth и не создают локального credential/backend contour.
 
 ## Принятие перед подачей
 
-Перед отправкой нужны challenge token, подтверждённый домен, verified developer/business identity,
-выбранные страны и повторный Scan Tools. Production MCP, OAuth, legal URLs, логотип и виртуальная
-reviewer sandbox уже доступны. Полный список и
+Перед отправкой нужны challenge token, подтверждённый домен, выбранные страны и повторный Scan
+Tools. Business verification организации уже подтверждена в OpenAI. Production MCP, OAuth, legal
+URLs, логотип и виртуальная reviewer sandbox уже доступны. Полный список и
 ровно 5+3 тестов находятся в [пакете подачи](openai-submission.md).

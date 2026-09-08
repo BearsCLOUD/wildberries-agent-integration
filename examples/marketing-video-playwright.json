@@ -6,7 +6,7 @@
     "name": "Интеграция агента Wildberries",
     "chat_url": "https://chatgpt.com/",
     "mcp_url": "https://wb.seller.bears.ru/mcp",
-    "minimum_version": "0.1.33"
+    "minimum_version": "0.1.35"
   },
   "capture": {
     "aspect_ratio": "16:9",

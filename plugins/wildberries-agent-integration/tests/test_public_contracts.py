@@ -359,6 +359,8 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(
     async def fake_request(self, **kwargs):  # noqa: ARG001
         calls.append(kwargs)
         return {
+            "ok": True,
+            "status": "updated",
             "nm_id": 123456789,
             "cost_price": 320.0,
             "access_token": "must-not-return",
@@ -381,6 +383,7 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(
                 "nm_id": 123456789,
                 "cost_price": 320.0,
                 "confirm": True,
+                "confirmation_token": "opaque-confirmation",
             },
         )
     )
@@ -396,6 +399,7 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(
                 "nm_id": 123456789,
                 "cost_price": 320.0,
                 "confirm": True,
+                "confirmation_token": "opaque-confirmation",
             },
             "request_id": None,
         }
@@ -410,11 +414,24 @@ def test_cost_price_upload_forwards_scoped_payload_without_provider_result(
     }
 
 
-def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
-    async def unexpected_request(*_args, **_kwargs):
-        raise AssertionError("unconfirmed write must not reach Seller")
+def test_cost_price_upload_gets_server_bound_preview(monkeypatch) -> None:
+    calls = []
 
-    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
+    async def fake_request(self, **kwargs):  # noqa: ARG001
+        calls.append(kwargs)
+        return {
+            "ok": False,
+            "error": {"code": "confirmation_required", "message": "owned"},
+            "requested": {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+            },
+            "confirmation_token": "opaque-confirmation",
+            "expires_in": 300,
+        }
+
+    monkeypatch.setattr(SellerGatewayClient, "request", fake_request)
     server = build_server(
         Settings(
             environment="test",
@@ -433,6 +450,159 @@ def test_cost_price_upload_requires_explicit_confirmation(monkeypatch) -> None:
         )
     )
     assert result["error"]["code"] == "confirmation_required"
+    assert result["confirmation_token"] == "opaque-confirmation"
+    assert result["expires_in"] == 300
+    assert result["requested"] == {
+        "supplier_id_wb": 31460,
+        "nm_id": 123456789,
+        "cost_price": 320.0,
+    }
+    assert calls[0]["json"] == {
+        "nm_id": 123456789,
+        "cost_price": 320.0,
+        "confirm": False,
+    }
+
+
+def test_cost_price_commit_without_token_never_reaches_gateway(monkeypatch) -> None:
+    async def unexpected_request(*_args, **_kwargs):
+        raise AssertionError("missing confirmation token must not reach Seller")
+
+    monkeypatch.setattr(SellerGatewayClient, "request", unexpected_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+            },
+        )
+    )
+
+    assert result["error"]["code"] == "confirmation_required"
+
+
+@pytest.mark.parametrize(
+    "gateway_error",
+    [
+        GatewayError("confirmation_expired", status=409),
+        GatewayError("confirmation_mismatch", status=409),
+        GatewayError("write_status_unknown", status=409),
+        GatewayError("upstream_timeout"),
+    ],
+)
+def test_cost_price_commit_maps_owned_and_uncertain_gateway_errors(
+    monkeypatch, gateway_error
+) -> None:
+    async def rejected_request(*_args, **_kwargs):
+        raise gateway_error
+
+    monkeypatch.setattr(SellerGatewayClient, "request", rejected_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+                "confirmation_token": "opaque-confirmation",
+            },
+        )
+    )
+
+    expected = (
+        gateway_error.code
+        if gateway_error.code in {"confirmation_expired", "confirmation_mismatch"}
+        else "write_status_unknown"
+    )
+    assert result["error"]["code"] == expected
+    if expected == "write_status_unknown":
+        assert result["write_status"] == "possibly_applied"
+
+
+def test_cost_price_commit_types_ordinary_gateway_rejection(monkeypatch) -> None:
+    async def rejected_request(*_args, **_kwargs):
+        raise GatewayError("forbidden", status=403)
+
+    monkeypatch.setattr(SellerGatewayClient, "request", rejected_request)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+                "confirmation_token": "opaque-confirmation",
+            },
+        )
+    )
+
+    assert result == {
+        "ok": False,
+        "error": {
+            "code": "forbidden",
+            "message": "Seller отклонил запрос записи себестоимости.",
+            "status": 403,
+        },
+    }
+
+
+def test_cost_price_commit_rejects_unowned_success_shape_as_unknown(monkeypatch) -> None:
+    async def malformed_success(*_args, **_kwargs):
+        return {
+            "ok": False,
+            "status": "updated",
+            "nm_id": 123456789,
+            "cost_price": 320.0,
+        }
+
+    monkeypatch.setattr(SellerGatewayClient, "request", malformed_success)
+    server = build_server(
+        Settings(
+            environment="test",
+            gateway_url="http://seller.example",
+            static_access_token="synthetic-agent-token",
+        )
+    )
+    _, result = asyncio.run(
+        server.call_tool(
+            "wb_upload_cost_price",
+            {
+                "supplier_id_wb": 31460,
+                "nm_id": 123456789,
+                "cost_price": 320.0,
+                "confirm": True,
+                "confirmation_token": "opaque-confirmation",
+            },
+        )
+    )
+
+    assert result["error"]["code"] == "write_status_unknown"
 
 
 def test_wildberries_proxy_forwards_only_a_fixed_seller_operation(monkeypatch) -> None:

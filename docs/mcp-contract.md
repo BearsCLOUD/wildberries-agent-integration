@@ -24,9 +24,10 @@ subject, точный MCP resource, scope `wildberries-agent-free`, связь �
 принадлежность поставщика. Seller bearer и сырой токен Wildberries не попадают в MCP-аргументы,
 ответы, хранилище или логи.
 
-Пятнадцать защищённых инструментов публикуют OAuth scope `wildberries-agent-free`; два чистых
-калькулятора (`wb_unit_economics`, `wb_replenishment_math`) публикуют `noauth`. Значение также
-зеркалируется в `_meta` для совместимости клиентов ChatGPT.
+Тринадцать защищённых инструментов публикуют OAuth scope `wildberries-agent-free`; четыре
+инструмента без доступа к Seller (`wb_competitive_price`, `wb_replenishment_math`,
+`wb_seo_analytics`, `wb_unit_economics`) публикуют `noauth`. Значение также зеркалируется в
+`_meta` для совместимости клиентов ChatGPT.
 
 Вызов защищённого инструмента без bearer возвращает MCP error result и
 `_meta["mcp/www_authenticate"]` с protected-resource URL, `invalid_token` и безопасным
@@ -240,6 +241,24 @@ heuristic.
 ## Cost-price write
 
 `wb_upload_cost_price` changes the cost price of one `nm_id` in Seller. It accepts `supplier_id_wb`,
-`nm_id`, and `cost_price` and executes immediately when bearer and ownership checks pass. Bearer and
-Wildberries token are not tool arguments. This is the only write tool described by this contract;
-price and discount writes remain out of scope.
+`nm_id`, `cost_price`, `confirm` (default `false`), and the optional `confirmation_token`.
+Bearer and Wildberries token are not tool arguments. This is the only write tool described by this
+contract; price and discount writes remain out of scope.
+
+The write is a server-bound two-step operation:
+
+1. Call with `confirm=false`. Gateway validates the OAuth identity and supplier ownership, does not
+   invoke the downstream cost-price PUT, and returns `ok=false`, `error.code="confirmation_required"`,
+   the exact requested `supplier_id_wb`, `nm_id`, and `cost_price`, a one-time `confirmation_token`,
+   and `expires_in=300`.
+2. Keep the token for the next call, show the exact parameter values and TTL to the user, and wait
+   for a separate user message. Only then call with `confirm=true`, the same values, and the returned
+   `confirmation_token`.
+
+Gateway binds the token to the operation, agent, Seller user, OAuth resource, supplier, product, and
+exact finite monetary value in existing Redis. A missing, expired, or mismatched token returns a safe
+error and never calls the Seller PUT. Concurrent commits allow at most one downstream PUT. A
+completed replay returns the saved safe result; an in-flight or transport-uncertain replay returns
+`write_status_unknown` and is not retried automatically. Changing the supplier, product, or amount
+requires a new preview. The token proves parameter binding, not the user's consent; the separate
+message remains required.

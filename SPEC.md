@@ -46,7 +46,9 @@ rankings, exact demand, or causal attribution.
 8. `wb_sales_weather_impact`: join supplied sales and weather rows by compatible date and region and report an observed correlation with sample-size and confounder caveats.
 9. `wb_seo_analytics`: calculate a deterministic content-completeness heuristic for the supplied title, description, keywords, characteristics, and optional competitor-title benchmark. It is not a Wildberries ranking model.
 10. `wb_unit_economics`: calculate margin, break-even price, commission, logistics, and scenario deltas from explicit inputs.
-11. `wb_upload_cost_price`: write the explicitly supplied cost price for one product to Seller.
+11. `wb_upload_cost_price`: preview and then write the explicitly supplied cost price for one
+    product to Seller; the second call requires the server-bound `confirmation_token` from the
+    preview and a separate user confirmation.
 12. `wb_inventory_forecast`: combine recent sales and stock data into a transparent replenishment recommendation by warehouse.
 
 The five new analysis tools are bounded, read-only, idempotent operations. They accept structured

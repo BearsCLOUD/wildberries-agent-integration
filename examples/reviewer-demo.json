@@ -8,6 +8,32 @@
   },
   "supplier_id_wb": 900000001,
   "nm_id": 9000000001,
+  "cost_price_write": {
+    "preview_call": {
+      "tool": "wb_upload_cost_price",
+      "supplier_id_wb": 900000001,
+      "nm_id": 9000000001,
+      "cost_price": 620,
+      "confirm": false
+    },
+    "separate_user_message": "Подтверждаю запись себестоимости 620 ₽ для nm_id 9000000001 у поставщика 900000001.",
+    "commit_call": {
+      "tool": "wb_upload_cost_price",
+      "supplier_id_wb": 900000001,
+      "nm_id": 9000000001,
+      "cost_price": 620,
+      "confirm": true,
+      "confirmation_token": "<token returned by preview>"
+    },
+    "expected_preview": {
+      "error_code": "confirmation_required",
+      "expires_in": 300
+    },
+    "expected_commit": {
+      "status": "simulated",
+      "mutation": "none"
+    }
+  },
   "unit_economics": {
     "price": 1990,
     "cost_price": 620,

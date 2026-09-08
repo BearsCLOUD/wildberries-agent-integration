@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import date, timedelta
 from math import isfinite
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.provider import AccessToken
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 from starlette.requests import Request
 from starlette.responses import (
     FileResponse,
@@ -41,6 +41,7 @@ from .sandbox import (
     error as sandbox_error,
     inventory_inputs as sandbox_inventory_inputs,
     is_sandbox_authorization,
+    prepare_cost_price as sandbox_prepare_cost_price,
     proxy as sandbox_proxy,
     refresh as sandbox_refresh,
     regional_sales as sandbox_regional_sales,
@@ -122,6 +123,66 @@ _TOOL_INVOCATION_LABELS = {
     ),
     "wb_inventory_forecast": ("Строю прогноз пополнения", "Прогноз пополнения готов"),
 }
+
+
+class CostPriceErrorDetails(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    code: str
+    message: str
+
+
+class CostPriceRequested(BaseModel):
+    supplier_id_wb: int
+    nm_id: int
+    cost_price: float
+
+
+class CostPriceSuccess(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    ok: Literal[True]
+    operation: str
+    status: str
+    supplier_id_wb: int
+    nm_id: int
+    cost_price: float
+
+
+class CostPriceFailure(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    ok: Literal[False]
+    error: CostPriceErrorDetails
+
+
+class CostPricePreviewFailure(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    ok: Literal[False]
+    error: CostPriceErrorDetails
+    requested: CostPriceRequested
+    confirmation_token: str
+    expires_in: int
+
+
+class CostPriceUnknownFailure(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    ok: Literal[False]
+    error: CostPriceErrorDetails
+    write_status: Literal["possibly_applied"]
+
+
+class CostPriceOutput(
+    RootModel[
+        CostPriceSuccess
+        | CostPricePreviewFailure
+        | CostPriceUnknownFailure
+        | CostPriceFailure
+    ]
+):
+    pass
 
 
 class _AgentFastMCP(FastMCP):
@@ -226,8 +287,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             "Календарные периоды считайте в часовом поясе пользователя: сегодня включает текущий день; последние N дней — "
             "N завершённых календарных дней без текущего дня; если период не указан, используйте 14 завершённых дней. "
             "Всегда сообщайте точные date_from и date_to. Для расчётов вызывайте детерминированные калькуляторы, "
-            "а для записи себестоимости сначала получите confirmation_required с confirm=false и выполняйте второй вызов "
-            "с confirm=true только после отдельного явного подтверждения пользователя."
+            "а для записи себестоимости сначала получите confirmation_required и confirmation_token с confirm=false. "
+            "После отдельного явного подтверждения пользователя выполняйте второй вызов с confirm=true, тем же "
+            "confirmation_token и неизменными параметрами."
         ),
         host=settings.host,
         port=settings.port,
@@ -1511,8 +1573,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
         description=(
             "Вызывайте, когда пользователь просит установить или изменить себестоимость товара в Seller. Это двухшаговая "
             "перезапись: первый вызов всегда делайте с confirm=false, покажите пользователю кабинет, артикул и сумму из "
-            "confirmation_required, затем остановитесь. Только после отдельного явного подтверждения пользователя повторите "
-            "тот же вызов с confirm=true. Не используйте ранее данное общее согласие и не меняйте значения между вызовами."
+            "confirmation_required, затем остановитесь. Только после отдельного сообщения с явным подтверждением пользователя "
+            "повторите тот же вызов с confirm=true и выданным confirmation_token. Не используйте ранее данное общее согласие. "
+            "Если кабинет, артикул или сумма изменились, получите новый preview с confirm=false."
         ),
         annotations=ToolAnnotations(
             readOnlyHint=False,
@@ -1549,8 +1612,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 )
             ),
         ] = False,
+        confirmation_token: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Непрозрачный токен из preview. Не передавайте при confirm=false; при confirm=true используйте токен "
+                    "только после отдельного явного подтверждения пользователя."
+                ),
+                max_length=512,
+            ),
+        ] = None,
         ctx: Context | None = None,
-    ) -> dict[str, Any]:
+    ) -> CostPriceOutput:
         auth = _auth_header(ctx, settings)
         normalized_cost_price = _as_float_value(cost_price)
         if (
@@ -1567,62 +1640,61 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "invalid_cost_price_input",
                 "supplier_id_wb и nm_id должны быть положительными, себестоимость — неотрицательной.",
             )
-        if confirm is not True:
-            response = {
-                "ok": False,
-                "error": {
-                    "code": "confirmation_required",
-                    "message": (
-                        "Подтвердите перезапись себестоимости, повторив вызов с "
-                        "confirm=true."
-                    ),
-                },
-                "requested": {
-                    "supplier_id_wb": supplier_id_wb,
-                    "nm_id": nm_id,
-                    "cost_price": normalized_cost_price,
-                },
-            }
-            if is_sandbox_authorization(auth):
-                response.update(
-                    {
-                        "sandbox": True,
-                        "synthetic": True,
-                        "identity": "reviewer-sandbox",
-                        "source": "virtual_sandbox",
-                        "operation": "set_cost_price_preview",
-                    }
-                )
-            return response
         if auth is None:
             return _auth_error()
         if is_sandbox_authorization(auth):
             supplier_error = sandbox_require_supplier(supplier_id_wb)
             if supplier_error:
                 return supplier_error
+            if confirm is not True:
+                return sandbox_prepare_cost_price(
+                    supplier_id_wb=supplier_id_wb,
+                    nm_id=nm_id,
+                    cost_price=normalized_cost_price,
+                )
             return sandbox_upload_cost_price(
                 supplier_id_wb=supplier_id_wb,
                 nm_id=nm_id,
                 cost_price=normalized_cost_price,
+                confirmation_token=confirmation_token,
             )
+        if confirm is True and not (
+            isinstance(confirmation_token, str) and confirmation_token.strip()
+        ):
+            return _cost_price_protocol_error("confirmation_required")
         try:
+            request_payload: dict[str, Any] = {
+                "nm_id": nm_id,
+                "cost_price": normalized_cost_price,
+                "confirm": confirm is True,
+            }
+            if confirm is True:
+                request_payload["confirmation_token"] = confirmation_token
             data = await gateway.request(
                 authorization=auth,
                 path="/agent/price_management/cost_price",
                 method="PUT",
                 params={"supplier_id_wb": supplier_id_wb},
-                json={
-                    "nm_id": nm_id,
-                    "cost_price": normalized_cost_price,
-                    "confirm": True,
-                },
+                json=request_payload,
                 request_id=_request_id(ctx),
             )
+            if confirm is not True:
+                return _validated_cost_price_preview(
+                    data,
+                    supplier_id_wb=supplier_id_wb,
+                    nm_id=nm_id,
+                    cost_price=normalized_cost_price,
+                )
             if not isinstance(data, dict):
                 return _unknown_write_status()
             response_nm_id = _as_int_value(data.get("nm_id"))
             response_cost_price = _as_float_value(data.get("cost_price"))
-            if response_nm_id != nm_id or response_cost_price is None:
+            if (
+                data.get("ok") is not True
+                or data.get("status") != "updated"
+                or response_nm_id != nm_id
+                or response_cost_price is None
+            ):
                 return _unknown_write_status()
             if abs(response_cost_price - normalized_cost_price) > 0.005:
                 return _unknown_write_status()
@@ -1635,10 +1707,19 @@ def build_server(settings: Settings | None = None) -> FastMCP:
                 "cost_price": normalized_cost_price,
             }
         except GatewayError as error:
-            result = _gateway_error(error)
-            if error.status is None or error.status >= 500:
-                result["possibly_applied"] = True
-            return result
+            if confirm is True and (
+                error.code == "write_status_unknown"
+                or error.status is None
+                or error.status >= 500
+            ):
+                return _unknown_write_status()
+            if error.code in {
+                "confirmation_required",
+                "confirmation_expired",
+                "confirmation_mismatch",
+            }:
+                return _cost_price_protocol_error(error.code, status=error.status)
+            return _cost_price_gateway_error(error)
 
     @server.tool(
         name="wb_replenishment_math",
@@ -2236,14 +2317,96 @@ def _gateway_error(error: GatewayError) -> dict[str, Any]:
     return {"ok": False, "error": {"code": error.code, "status": error.status}}
 
 
+def _validated_cost_price_preview(
+    data: Any,
+    *,
+    supplier_id_wb: int,
+    nm_id: int,
+    cost_price: float,
+) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        return _invalid_cost_price_gateway_response()
+    error = data.get("error")
+    requested = data.get("requested")
+    token = data.get("confirmation_token")
+    expires_in = data.get("expires_in")
+    if (
+        data.get("ok") is not False
+        or not isinstance(error, dict)
+        or error.get("code") != "confirmation_required"
+        or not isinstance(requested, dict)
+        or _as_int_value(requested.get("supplier_id_wb")) != supplier_id_wb
+        or _as_int_value(requested.get("nm_id")) != nm_id
+        or _as_float_value(requested.get("cost_price")) != cost_price
+        or not isinstance(token, str)
+        or not token.strip()
+        or len(token) > 512
+        or expires_in != 300
+    ):
+        return _invalid_cost_price_gateway_response()
+    response = _cost_price_protocol_error("confirmation_required")
+    response.update(
+        {
+            "requested": {
+                "supplier_id_wb": supplier_id_wb,
+                "nm_id": nm_id,
+                "cost_price": cost_price,
+            },
+            "confirmation_token": token,
+            "expires_in": 300,
+        }
+    )
+    return response
+
+
+def _invalid_cost_price_gateway_response() -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": {
+            "code": "invalid_gateway_response",
+            "message": "Seller вернул некорректный preview себестоимости; запись не выполнена.",
+        },
+    }
+
+
+def _cost_price_gateway_error(error: GatewayError) -> dict[str, Any]:
+    details: dict[str, Any] = {
+        "code": error.code,
+        "message": "Seller отклонил запрос записи себестоимости.",
+    }
+    if error.status is not None:
+        details["status"] = error.status
+    return {"ok": False, "error": details}
+
+
+def _cost_price_protocol_error(
+    code: str, *, status: int | None = None
+) -> dict[str, Any]:
+    messages = {
+        "confirmation_required": (
+            "Сначала получите preview с confirm=false, затем запросите отдельное подтверждение пользователя."
+        ),
+        "confirmation_expired": (
+            "Подтверждение отсутствует или истекло. Получите новый preview."
+        ),
+        "confirmation_mismatch": (
+            "Параметры отличаются от preview. Получите новое подтверждение."
+        ),
+    }
+    details: dict[str, Any] = {"code": code, "message": messages[code]}
+    if status is not None:
+        details["status"] = status
+    return {"ok": False, "error": details}
+
+
 def _unknown_write_status() -> dict[str, Any]:
     return {
         "ok": False,
         "error": {
             "code": "write_status_unknown",
-            "message": "Seller не подтвердил результат записи себестоимости.",
+            "message": "Статус записи неизвестен; автоматический повтор запрещён.",
         },
-        "possibly_applied": True,
+        "write_status": "possibly_applied",
     }
 
 

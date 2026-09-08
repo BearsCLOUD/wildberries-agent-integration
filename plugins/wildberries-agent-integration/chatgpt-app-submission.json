@@ -247,11 +247,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Exercise the reviewer-safe two-step cost-price workflow.",
+      "description": "Exercise the server-bound two-step cost-price workflow in the isolated reviewer sandbox.",
       "user_prompt": "Установи себестоимость 320 ₽ для nm_id 900000101 у поставщика 900000001.",
       "file_attachment_urls": null,
       "tools_triggered": "wb_upload_cost_price",
-      "expected_output": "First returns confirmation_required with the exact supplier, item, and amount. After a separate user confirmation, repeats with confirm=true and reports a simulated write with no external mutation.",
+      "expected_output": "The first call with confirm=false and no confirmation_token returns confirmation_required, the exact supplier_id_wb, nm_id, cost_price, a confirmation_token, and expires_in=300 without a write. After a separate user message confirms those exact values, the second call uses confirm=true, the same values, and that token, then reports the simulated write. A changed parameter requires a new preview; a missing, expired, mismatched, or uncertain confirmation never triggers an automatic retry.",
       "expected_output_url": null
     }
   ],
